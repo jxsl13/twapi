@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -21,7 +23,7 @@ func packControlMessageWithToken(tokenServer, tokenClient int) []byte {
 	const netTokenRequestDataSize = 512
 
 	const size = 4 + 3 + netTokenRequestDataSize
-	b := make([]byte, 512, 512)
+	b := make([]byte, size, size)
 
 	// Header
 	b[0] = (netPacketFlagControl << 2) & 0b11111100
@@ -169,10 +171,19 @@ func sendToken(host string, port int) (tokenServer, tokenClient int, err error) 
 }
 
 func main() {
-	tokenServer, tokenClient, err := sendToken("master1.teeworlds.com", 8283)
+	// tokenServer, tokenClient, err := sendToken("master1.teeworlds.com", 8283)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	return
+	// }
+	// fmt.Printf("Server Token: %d Client Token: %d", tokenServer, tokenClient)
+	token := 2000000000
+	buffer := bytes.NewBuffer(packControlMessageWithToken(-1, token))
+
+	err := Client(context.Background(), "master1.teeworlds.com:8283", buffer)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("Error: %s", err.Error())
 		return
 	}
-	fmt.Printf("Server Token: %d Client Token: %d", tokenServer, tokenClient)
+
 }

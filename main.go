@@ -1,12 +1,8 @@
 package main
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"fmt"
-	"net"
-	"time"
 )
 
 func getMasterServerList() (masterservers []string) {
@@ -115,75 +111,17 @@ func unpackControlMessageWithToken(message []byte) (tokenServer, tokenClient int
 	return
 }
 
-func sendToken(host string, port int) (tokenServer, tokenClient int, err error) {
-	ms, err := NewMasterServer(host, port)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	addr := ms.GetUDPAddress()
-
-	conn, err := net.DialUDP("udp", nil, &addr)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer conn.Close()
-
-	//s1 := rand.NewSource(time.Now().UnixNano())
-	//r1 := rand.New(s1)
-	//token := int(r1.Int31())
-	token := 2000000000
-
-	msg := packControlMessageWithToken(-1, token)
-	fmt.Println("Packet size", len(msg))
-	sentBytes, err := conn.Write(msg)
-	fmt.Println("Sent bytes", sentBytes)
-
-	buffer := make([]byte, 0, 2048)
-
-	conn.SetDeadline(time.Now().Add(5 * time.Second))
-	var readBytes int
-	//var addrptr *net.UDPAddr
-
-	for {
-		readBytes, _, err = conn.ReadFromUDP(buffer)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		if readBytes > 0 {
-			fmt.Println("Read bytes from master server", readBytes)
-			break
-		}
-
-	}
-
-	tokenServer, tokenClient, err = unpackControlMessageWithToken(buffer)
-
-	if token != tokenClient {
-		err = fmt.Errorf("Token mismatch: Sent %d != Received %d", token, tokenClient)
-		return
-	}
-
-	return
-}
-
 func main() {
-	// tokenServer, tokenClient, err := sendToken("master1.teeworlds.com", 8283)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return
-	// }
-	// fmt.Printf("Server Token: %d Client Token: %d", tokenServer, tokenClient)
-	token := 2000000000
-	buffer := bytes.NewBuffer(packControlMessageWithToken(-1, token))
-
-	err := Client(context.Background(), "master1.teeworlds.com:8283", buffer)
+	ms, err := NewMasterServerFromAddress("master1.teeworlds.com:8283")
 	if err != nil {
-		fmt.Printf("Error: %s", err.Error())
+		fmt.Println("Failed to create a masterserver: ", err)
 		return
 	}
+	defer ms.Close()
 
+	ms.RefreshToken()
+	_, err = ms.GetServerList()
+	if err != nil {
+		fmt.Println(err)
+	}
 }

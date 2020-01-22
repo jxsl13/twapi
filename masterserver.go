@@ -103,11 +103,13 @@ func (ms *MasterServer) request(req []byte, responseSize int) (resp []byte, err 
 	}
 	fmt.Printf("response-received: bytes=%d from=%s\n", readBytes, receivedFrom)
 
-	resp = buffer
+	// do not pass empty bytes
+	resp = buffer[:readBytes]
 	return
 }
 
-func (ms *MasterServer) getHeader(packetConstant string) (header []byte) {
+// get the request header
+func (ms *MasterServer) getHeaderToSend(packetConstant string) (header []byte) {
 	const netPacketFlagConnless = 8
 	const netPacketVersion = 1
 
@@ -134,15 +136,52 @@ func (ms *MasterServer) getHeader(packetConstant string) (header []byte) {
 	return
 }
 
-func (ms *MasterServer) GetServerList() (serverList []string, err error) {
-	headerToSend := ms.getHeader(getList)
+// get the request header
+func (ms *MasterServer) getHeaderToReceive(packetConstant string) (header []byte) {
+	const netPacketFlagConnless = 8
+	const netPacketVersion = 1
 
-	responseData, err := ms.request(headerToSend, 8096)
+	binaryPacketConstant := []byte(packetConstant)
+	header = make([]byte, 9, 9+len(binaryPacketConstant))
+
+	// access members threadsafe
+	tokenClient := atomic.LoadUint32(&ms.tokenClient)
+	tokenServer := atomic.LoadUint32(&ms.tokenServer)
+
+	// Header
+	header[0] = ((netPacketFlagConnless << 2) & 0b11111100) | (netPacketVersion & 0b00000011)
+	header[1] = byte(tokenClient >> 24)
+	header[2] = byte(tokenClient >> 16)
+	header[3] = byte(tokenClient >> 8)
+	header[4] = byte(tokenClient)
+	// ResponseToken
+	header[5] = byte(tokenServer >> 24)
+	header[6] = byte(tokenServer >> 16)
+	header[7] = byte(tokenServer >> 8)
+	header[8] = byte(tokenServer)
+
+	header = append(header, binaryPacketConstant...)
+	return
+}
+
+// GetServerList retrieves the server list from the masterserver
+func (ms *MasterServer) GetServerList() (serverList []net.UDPAddr, err error) {
+
+	err = ms.refreshToken()
+	if err != nil {
+		err = fmt.Errorf("%s : %s", "failed to refresh token handshake", err)
+		return
+	}
+
+	headerToSend := ms.getHeaderToSend(getList)
+
+	responseData, err := ms.request(headerToSend, 4096)
 	if err != nil {
 		return
 	}
 
-	headerToReceive := ms.getHeader(sendList)
+	// client and server token are inverted in this case
+	headerToReceive := ms.getHeaderToReceive(sendList)
 
 	responseHeader := responseData[:len(headerToReceive)]
 
@@ -152,15 +191,22 @@ func (ms *MasterServer) GetServerList() (serverList []string, err error) {
 	}
 
 	data := responseData[len(headerToReceive):]
-	numServers := len(data)
+	numServers := len(data) / 18 // 18 byte, 16 for IPv4/IPv6 and 2 bytes for the port
+	serverList = make([]net.UDPAddr, 0, numServers)
 
-	fmt.Printf("Data getServerList(%d):\n%s", numServers, hex.Dump(data))
+	for idx := 0; idx < numServers; idx++ {
+
+		serverList = append(serverList, net.UDPAddr{
+			IP:   data[idx*18 : idx*18+16],
+			Port: (int(data[idx*18+16]) << 8) + int(data[idx*18+17]),
+		})
+	}
 	return
 }
 
 // RefreshToken updates the needed token for a safe communication
 // todo: check export/visibility
-func (ms *MasterServer) RefreshToken() (err error) {
+func (ms *MasterServer) refreshToken() (err error) {
 
 	packControlMessageWithToken := func(tokenServer, tokenClient int32) []byte {
 		const netPacketFlagControl = 1

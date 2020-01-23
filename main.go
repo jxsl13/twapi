@@ -40,4 +40,14 @@ func main() {
 		fmt.Println(srv)
 	}
 
+	for _, ms := range masterServers {
+		cnt, err := ms.GetServerCount()
+		if err != nil {
+			fmt.Printf("Error while trying to reach the mastrserver %s: %s\n", ms, err)
+			continue
+		}
+
+		fmt.Printf("The mastererver %s has %d servers.\n", ms, cnt)
+	}
+
 }

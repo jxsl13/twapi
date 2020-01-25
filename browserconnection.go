@@ -53,6 +53,7 @@ func (bc *BrowserConnection) Timeout(timeout time.Duration) {
 // if the request succeeds, resp contains the response data without the expected response header.
 func (bc *BrowserConnection) Request(sentHeader, expectedResponseHeader string, responseSize int) (resp []byte, err error) {
 
+	// TODO: set timeout to 10ms and increase is by (10 ms * 2^n) also increase the burst size of packets
 	err = bc.refreshToken()
 	if err != nil {
 		err = fmt.Errorf("%s : %s", "failed to refresh token handshake", err)

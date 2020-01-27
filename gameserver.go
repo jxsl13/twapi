@@ -38,11 +38,17 @@ type ServerInfo struct {
 	MaxPlayers  int
 	NumClients  int
 	MaxClients  int
-	Players     []*PlayerInfo
+	Players     []PlayerInfo
+	Date        time.Time
+}
+
+// Valid returns true is the struct contains valid data
+func (s *ServerInfo) Valid() bool {
+	return s.Address != "" && s.Map != ""
 }
 
 func (s *ServerInfo) String() string {
-	base := fmt.Sprintf("\nHostname: %10s\nAddress: %20s\nVersion: '%10s'\nName: '%s'\nGameType: %s\nMap: %s\nServerFlags: %b\nSkilllevel: %d\n%d/%d Players \n%d/%d Clients\n",
+	base := fmt.Sprintf("\nHostname: %10s\nAddress: %20s\nVersion: '%10s'\nName: '%s'\nGameType: %s\nMap: %s\nServerFlags: %b\nSkilllevel: %d\n%d/%d Players \n%d/%d Clients\nDate: %s\n",
 		s.Hostname,
 		s.Address,
 		s.Version,
@@ -54,7 +60,8 @@ func (s *ServerInfo) String() string {
 		s.NumPlayers,
 		s.MaxPlayers,
 		s.NumClients,
-		s.MaxClients)
+		s.MaxClients,
+		s.Date.Local().String())
 	sb := strings.Builder{}
 	sb.Grow(256 + s.NumClients*128)
 	sb.WriteString(base)
@@ -69,6 +76,54 @@ func (s *ServerInfo) String() string {
 // data and player infos
 type GameServer struct {
 	*BrowserConnection
+// NewGameserverBrowserConn constructs a new gameserver that can be asked for its server info
+func NewGameserverBrowserConn(bc *BrowserConnection, retries int) (gs GameServer, err error) {
+	if bc == nil {
+		err = errors.New("nil BrowserConnection passed")
+		return
+	}
+	gs = GameServer{bc, retries, 0, 0}
+	return
+}
+
+// NewGameServerFromUDPConn creates a new gameserver from a udp connection
+func NewGameServerFromUDPConn(conn *net.UDPConn, timeout time.Duration, retries int) (gs GameServer, err error) {
+
+	bc, err := NewBrowserConnetion(conn, timeout)
+	if err != nil {
+		return
+	}
+
+	gs, err = NewGameserverBrowserConn(&bc, retries)
+	return
+}
+
+// NewGameServerFromUDPAddr creates a new gameserver from a udp address
+func NewGameServerFromUDPAddr(addr *net.UDPAddr, timeout time.Duration, retries int) (gs GameServer, err error) {
+	conn, err := net.DialUDP("udp", nil, addr)
+	if err != nil {
+		return
+	}
+	gs, err = NewGameServerFromUDPConn(conn, timeout, retries)
+	return
+}
+
+// NewGameServerFromAddress creates a new server from an (IP/hostname):port string
+func NewGameServerFromAddress(address string, timeout time.Duration, retries int) (gs GameServer, err error) {
+
+	udpAddr, err := net.ResolveUDPAddr("udp", address)
+	if err != nil {
+		return
+	}
+
+	gs, err = NewGameServerFromUDPAddr(udpAddr, timeout, retries)
+	return
+
+}
+
+// ValidConnection returns if requesting data from that server makes sense
+func (gs *GameServer) ValidConnection() bool {
+	return gs.serverInfoRetrievals == 0 || gs.successfulRetrievals > 0
 }
 
 // ServerInfo retrieves the server info from the underlying server

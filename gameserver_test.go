@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"net"
+	"strings"
 	"testing"
 	"time"
 )
@@ -113,10 +114,10 @@ func TestFullServerInfo(t *testing.T) {
 
 	gameservers := make([]*GameServer, 0, len(connections))
 	for idx, conn := range connections {
-		if idx > 70 {
+		if idx > 300 {
 			break
 		}
-		bc, err := NewBrowserConnetion(conn, 30*time.Second)
+		bc, err := NewBrowserConnetion(conn, 5*time.Second)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -125,11 +126,44 @@ func TestFullServerInfo(t *testing.T) {
 	}
 
 	for _, gs := range gameservers {
-		_, err := gs.ServerInfo()
+		info, err := gs.ServerInfo()
 		if err != nil {
-			t.Error(err)
-			continue
+			if strings.Contains(err.Error(), "timeout") {
+				t.Logf("Server TIMEOUT: %s", info.String())
+				continue
+			} else {
+				t.Errorf("Server error: %s : %s : %s", err.Error(), gs.RemoteAddr().String(), info.String())
+				return
+			}
 		}
+	}
+}
 
+func TestBadConnectivity(t *testing.T) {
+	udpAddr, err := net.ResolveUDPAddr("udp", highlyFrequentedServer)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	conn, err := net.DialUDP("udp", nil, udpAddr)
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	bc, err := NewBrowserConnetion(conn, 30*time.Second)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	defer bc.Close()
+
+	gs := GameServer{&bc}
+
+	_, err = gs.ServerInfo()
+	if err != nil {
+		t.Error(err)
 	}
 }

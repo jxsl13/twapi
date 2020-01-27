@@ -106,7 +106,7 @@ func (bc *BrowserConnection) Request(sentHeader, expectedResponseHeader string, 
 	responseHeader := responseData[:len(headerToReceive)]
 
 	if !bytes.Equal(headerToReceive, responseHeader) {
-		err = fmt.Errorf("Expected header: \n%s\nReceived header:\n%s", hex.Dump(headerToReceive), hex.Dump(responseHeader))
+		err = fmt.Errorf("header mismatch: expected='%s' reveived='%s'", hex.EncodeToString(headerToReceive), hex.EncodeToString(responseHeader))
 		return
 	}
 

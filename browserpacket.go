@@ -237,7 +237,7 @@ func (bp *BrowserPacket) addPayloadConstant(packetConstant string) {
 
 // AddResponseConstant initializes the expected response header
 func (bp *BrowserPacket) addResponseConstant(packetConstant string) {
-	bp.payload.Write(packTokenHeader(bp.ServerToken(), bp.ClientToken(), packetConstant))
+	bp.responseHeader.Write(packTokenHeader(bp.ServerToken(), bp.ClientToken(), packetConstant))
 }
 
 // AddResponseConstant initializes the expected response header

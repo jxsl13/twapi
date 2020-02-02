@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"net"
 	"strings"
+	"time"
 )
 
 const (
@@ -76,6 +79,11 @@ func (s *ServerInfo) String() string {
 // data and player infos
 type GameServer struct {
 	*BrowserConnection
+	retries              int
+	serverInfoRetrievals int // how often the server info has ben retrieved already
+	successfulRetrievals int // number of successfully retrieved data
+}
+
 // NewGameserverBrowserConn constructs a new gameserver that can be asked for its server info
 func NewGameserverBrowserConn(bc *BrowserConnection, retries int) (gs GameServer, err error) {
 	if bc == nil {
@@ -128,11 +136,44 @@ func (gs *GameServer) ValidConnection() bool {
 
 // ServerInfo retrieves the server info from the underlying server
 func (gs *GameServer) ServerInfo() (info ServerInfo, err error) {
+	// set valid is no error has been returned
+	defer func() {
+		gs.serverInfoRetrievals++
+		if err != nil {
+			gs.successfulRetrievals++
+		}
+	}()
 
-	resp, err := gs.Request(getInfo, receiveInfo, 2048)
-	if err != nil {
-		return
+	retries := 0
+
+	if gs.retries <= 0 {
+		retries = 1
+	} else {
+		retries = gs.retries
 	}
+
+	timeout := time.Millisecond * 50
+
+	resp := make([]byte, 5, 5)
+
+	for 0 < retries {
+		gs.Timeout(timeout)
+		resp, err = gs.Request(getInfo, receiveInfo, 2048)
+		if err != nil {
+			errStr := err.Error()
+			if strings.Contains(errStr, "timeout") || strings.Contains(errStr, "empty response") {
+				timeout *= 2
+				retries--
+				continue
+			} else if strings.Contains(errStr, "mismatch") {
+				retries--
+				continue
+			}
+			return
+		}
+	}
+	err = nil
+
 	if len(resp) == 0 {
 		err = fmt.Errorf("ServerInfo(): reveived empty response")
 		return
@@ -159,7 +200,7 @@ func (gs *GameServer) ServerInfo() (info ServerInfo, err error) {
 	info.MaxClients = v.Unpack()
 
 	// preallocate space for player pointers
-	info.Players = make([]*PlayerInfo, 0, info.NumClients)
+	info.Players = make([]PlayerInfo, 0, info.NumClients)
 
 	data = v.Data() // return the not yet used remaining data
 
@@ -176,7 +217,7 @@ func (gs *GameServer) ServerInfo() (info ServerInfo, err error) {
 		player.Score = v.Unpack()
 		player.Type = v.Unpack()
 
-		info.Players = append(info.Players, &player)
+		info.Players = append(info.Players, player)
 	}
 
 	return

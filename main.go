@@ -34,15 +34,16 @@ func main() {
 	}
 
 	start := func(gs GameServer, c *ConcurrentServerCache, wg *sync.WaitGroup) {
+		defer wg.Done()
 		info, err := gs.ServerInfo()
 		if err != nil {
+			fmt.Print(err)
 			return
 		}
 		if info.Valid() {
 			cache.Add(&info)
 		}
 		fmt.Printf("Retrieving data from: %s\n", gs.RemoteAddr().String())
-		wg.Done()
 	}
 
 	wg := sync.WaitGroup{}

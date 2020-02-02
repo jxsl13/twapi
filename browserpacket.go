@@ -243,6 +243,12 @@ func (bp *BrowserPacket) addResponseConstant(packetConstant string) {
 // AddResponseConstant initializes the expected response header
 func (bp *BrowserPacket) responseHeaderOk(responseMessage []byte) (data []byte, ok bool) {
 	expectedLen := bp.responseHeader.Len()
+
+	if len(responseMessage) < expectedLen {
+		data = responseMessage
+		ok = false
+		return
+	}
 	receivedHeader := responseMessage[:expectedLen]
 
 	if bytes.Compare(receivedHeader, bp.responseHeader.Bytes()) == 0 {

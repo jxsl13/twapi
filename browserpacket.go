@@ -91,6 +91,17 @@ func (t *TokenPacket) Generate() {
 	t.Write(header)
 }
 
+// RefillBuffer refills the token buffer for continuous reading
+func (t *TokenPacket) RefillBuffer() {
+	t.Packet.Reset()
+	t.Packet.Write(packCtrlMsgWithToken(t.ServerToken(), t.ClientToken()))
+}
+
+// Len returns length of the remaining buffer size.
+func (t *TokenPacket) Len() int {
+	return t.Packet.Len()
+}
+
 // unpacks header
 func unpackCtrlMsgWithToken(message []byte) (tokenServer, tokenClient int, err error) {
 	if len(message) < 12 {
@@ -146,6 +157,7 @@ type BrowserPacket struct {
 	token          TokenPacket
 	payload        Packet
 	responseHeader Packet
+	reads          int
 }
 
 // NewBrowserPacket creates a new browserpacket
@@ -164,6 +176,7 @@ func (bp *BrowserPacket) Token() *TokenPacket {
 
 // Reset resets the state to allow for another read
 func (bp *BrowserPacket) Reset() {
+	bp.reads = 0
 	bp.token.Reset()
 	bp.payload.Reset()
 }
@@ -173,8 +186,13 @@ func (bp *BrowserPacket) Read(p []byte) (n int, err error) {
 	if bp.token.Expired() {
 		return 0, errors.New("token expired")
 	}
+	if bp.reads == 0 && bp.token.Len() == 0 {
+
+	}
+
 	tokenSize, err1 := bp.token.Read(p)
 	payloadSize, err2 := bp.payload.Read(p)
+	bp.reads++
 
 	if err1 == io.EOF && err2 == io.EOF {
 		return 0, io.EOF

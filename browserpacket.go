@@ -4,51 +4,224 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
+	"strings"
 	"time"
 )
 
 const (
-	requestServerList       = "\xff\xff\xff\xffreq2"
-	sendServerList          = "\xff\xff\xff\xfflis2"
-	requestServerCount      = "\xff\xff\xff\xffcou2"
-	sendServerCount         = "\xff\xff\xff\xffsiz2"
-	tokenRefreshTimeSeconds = 90
+	// Used for the masterserver
+	requestServerList  = "\xff\xff\xff\xffreq2"
+	sendServerList     = "\xff\xff\xff\xfflis2"
+	requestServerCount = "\xff\xff\xff\xffcou2"
+	sendServerCount    = "\xff\xff\xff\xffsiz2"
+
+	// Used for the gameserver
+	requestInfo = "\xff\xff\xff\xffgie3\x00" // need explicitly the trailing \x00
+	sendInfo    = "\xff\xff\xff\xffinf3\x00"
+
+	tokenResponseSize = 12
+	tokenRequestSize  = 9
 )
 
-// Packet contains a payload
-type Packet struct {
-	bytes.Buffer
+var (
+	// ErrTokenExpired is returned when a request packet is being constructed with an expired token
+	ErrTokenExpired = errors.New("token expired")
+
+	// ErrInvalidResponseMessage is returned when a passed response message does not contain the expected data.
+	ErrInvalidResponseMessage = errors.New("invalid response message")
+
+	// TokenExpirationDuration sets the protocol expiration time of a token
+	// This variable can be changed
+	TokenExpirationDuration = time.Second * 90
+
+	requestServerListRaw  = []byte(string(requestServerList))
+	sendServerListRaw     = []byte(string(sendServerList))
+	requestServerCountRaw = []byte(string(requestServerCount))
+	sendServerCountRaw    = []byte(string(sendServerCount))
+	requestInfoRaw        = []byte(string(requestInfo))
+	sendInfoRaw           = []byte(string(sendInfo))
+)
+
+// TokenRequestPacket can be sent to request a new token from the
+type TokenRequestPacket []byte
+
+// ServerListRequestPacket is used to request the server list from the masterserver
+type ServerListRequestPacket []byte
+
+// ServerCountRequestPacket is used to request the number of currently registered servers ad the masterserver
+type ServerCountRequestPacket []byte
+
+// ServerInfoRequestPacket is used to request the player and server information from a gameserver
+type ServerInfoRequestPacket []byte
+
+// ServerList is the result type of a serer list request
+type ServerList []net.UDPAddr
+
+// type ServerInfo struct {
+// 	//...
+// 	Players []PlayerInfo
+// }
+// type PlayerInfo struct {
+// 	//...
+// }
+
+// Token is used to request information from either master of game servers.
+// The token needs to be renewed via NewTokenRequestPacket()
+// followed by parsing the server's response with NewToken(responseMessage []byte) (Token, error)
+type Token struct {
+	Payload   []byte //len should be 12 at most
+	expiresAt time.Time
+	client    int
+	server    int
 }
 
-// TokenPacket abstracts the token for the browser protocol
-type TokenPacket struct {
-	Packet
-	clientToken int
-	serverToken int
-	expiresAt   time.Time
+// Expired returns true if the token already expired and needs to be renewed
+func (ts *Token) Expired() bool {
+	return ts.expiresAt.Before(time.Now())
 }
 
-// ClientToken return sthe client token
-func (t *TokenPacket) ClientToken() int {
-	return t.clientToken
+// NewTokenRequestPacket generates a new token request packet that can be
+// used to request fo a new server token
+func NewTokenRequestPacket() TokenRequestPacket {
+	seedSource := rand.NewSource(time.Now().UnixNano())
+	randomNumberGenerator := rand.New(seedSource)
+
+	clientToken := int(randomNumberGenerator.Int31())
+	clientToken = 66666
+	serverToken := -1
+
+	header := packTokenRequest(clientToken, serverToken)
+	return TokenRequestPacket(header)
 }
 
-// ServerToken returns the server token that's being used in the follow up requests
-func (t *TokenPacket) ServerToken() int {
-	return t.serverToken
+// NewToken creates a new token from a response message that was sent by a server that was
+// requested with a TokenRequestPacket
+// Returns:
+//		data without the token header
+//		A token that is used for every continuous request, until the token expires and needs to be renewed
+// 		an ErrInvalidResponseMessage if the serverResponse is too short.
+// Info: If the serverResponse is incorrect, but has the correct length, the resulting token might contain invalid data.
+// This function should be immediatly called after receiving the Token Response message from the server.
+func NewToken(serverResponse []byte) (Token, error) {
+	tokenClient, tokenServer, err := unpackTokenResponse(serverResponse)
+	if err != nil {
+		return Token{}, ErrInvalidResponseMessage
+	}
+
+	header := packToken(tokenClient, tokenServer)
+
+	return Token{header, time.Now().Add(TokenExpirationDuration - 1*time.Second), tokenClient, tokenServer}, nil
 }
 
-// Expired checks if the current token already expired.
-func (t *TokenPacket) Expired() bool {
-	timeLeft := t.expiresAt.Sub(time.Now())
-	return timeLeft <= 0
+// NewServerListRequestPacket creates a new server list request packet
+// Returns an ErrTokenExpired if the token passed alreay expired.
+func NewServerListRequestPacket(t Token) (ServerListRequestPacket, error) {
+	if t.Expired() {
+		return ServerListRequestPacket{}, ErrTokenExpired
+	}
+
+	payload := make([]byte, 0, len(requestServerListRaw)+len(t.Payload))
+	payload = append(payload, t.Payload...)
+	payload = append(payload, requestServerListRaw...)
+	return ServerListRequestPacket(payload), nil
 }
+
+// NewServerCountRequestPacket creates a new packet that can be used to request the number of currently registered
+// game servers at the master servers
+// Returns ErrTokenExpired if the passed token already expired
+func NewServerCountRequestPacket(t Token) (ServerCountRequestPacket, error) {
+	if t.Expired() {
+		return ServerCountRequestPacket{}, ErrTokenExpired
+	}
+
+	payload := make([]byte, 0, len(requestServerCountRaw)+len(t.Payload))
+	payload = append(payload, t.Payload...)
+	payload = append(payload, requestServerCountRaw...)
+
+	return ServerCountRequestPacket(payload), nil
+}
+
+// NewServerInfoRequestPacket creates a new request packet
+// that can b eused to request the server info of a gameserver
+func NewServerInfoRequestPacket(t Token) (ServerInfoRequestPacket, error) {
+	if t.Expired() {
+		return ServerInfoRequestPacket{}, ErrTokenExpired
+	}
+
+	payload := make([]byte, 0, len(requestInfoRaw)+len(t.Payload))
+	payload = append(payload, t.Payload...)
+	payload = append(payload, requestInfoRaw...)
+
+	return ServerInfoRequestPacket(payload), nil
+}
+
+// NewServerList parses the response server list
+func NewServerList(serverResponse []byte) (ServerList, Token, error) {
+	if len(serverResponse) < tokenResponseSize+len(sendServerListRaw) {
+		return nil, Token{}, ErrInvalidResponseMessage
+	}
+
+	token, err := NewToken(serverResponse[:tokenResponseSize])
+	if err != nil {
+		return nil, Token{}, err
+	}
+
+	responseHeader := string(serverResponse[tokenResponseSize : tokenResponseSize+len(sendServerListRaw)])
+
+	if strings.Compare(responseHeader, "\xff\xff\xff\xfflis2") != 0 {
+		return nil, Token{}, ErrInvalidResponseMessage
+	}
+
+	data := serverResponse[tokenResponseSize+len(sendServerListRaw):]
+
+	/*
+		each server information contains of 18 bytes
+		first 16 bytes define the IP
+		the last 2 bytes define the port
+
+		if the first 12 bytes match the defined pefix, the IP is parsed as IPv4
+		and if it does not match, the IP is parsed as IPv6
+	*/
+	numServers := len(data) / 18 // 18 byte, 16 for IPv4/IPv6 and 2 bytes for the port
+	serverList := make([]net.UDPAddr, 0, numServers)
+
+	// fixed size array
+	ipv4Prefix := [12]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF}
+
+	for idx := 0; idx < numServers; idx++ {
+		ip := []byte{}
+
+		// compare byte slices
+		if bytes.Equal(ipv4Prefix[:], data[idx*18:idx*18+12]) {
+			// IPv4 has a prefix
+			ip = data[idx*18+12 : idx*18+16]
+		} else {
+			// full IP is the IPv6 otherwise
+			ip = data[idx*18 : idx*18+16]
+		}
+
+		serverList = append(serverList, net.UDPAddr{
+			IP:   ip,
+			Port: (int(data[idx*18+16]) << 8) + int(data[idx*18+17]),
+		})
+	}
+
+	return serverList, token, nil
+
+}
+
+// func NewServerCount(serverResponse []byte) (int, Token, error) {
+
+// }
+
+// func NewServerInfo(serverResponse []byte) (ServerInfo, Token, error) {
+
+// }
 
 // packs header
-func packCtrlMsgWithToken(tokenServer, tokenClient int) []byte {
+func packTokenRequest(tokenClient, tokenServer int) []byte {
 	const netPacketFlagControl = 1
 	const netControlMessageToken = 5
 	const netTokenRequestDataSize = 512
@@ -71,41 +244,10 @@ func packCtrlMsgWithToken(tokenServer, tokenClient int) []byte {
 	return b
 }
 
-// Generate a new client token if the server token already expired.
-// when a new client token is generated, the old server token expires.
-func (t *TokenPacket) Generate() {
-
-	if t.expiresAt.Sub(time.Now()) > 0 {
-		return
-	}
-
-	seedSource := rand.NewSource(time.Now().UnixNano())
-	randomNumberGenerator := rand.New(seedSource)
-
-	t.clientToken = int(randomNumberGenerator.Int31())
-	t.serverToken = -1
-
-	header := packCtrlMsgWithToken(t.serverToken, t.clientToken)
-
-	t.Reset()
-	t.Write(header)
-}
-
-// RefillBuffer refills the token buffer for continuous reading
-func (t *TokenPacket) RefillBuffer() {
-	t.Packet.Reset()
-	t.Packet.Write(packCtrlMsgWithToken(t.ServerToken(), t.ClientToken()))
-}
-
-// Len returns length of the remaining buffer size.
-func (t *TokenPacket) Len() int {
-	return t.Packet.Len()
-}
-
 // unpacks header
-func unpackCtrlMsgWithToken(message []byte) (tokenServer, tokenClient int, err error) {
-	if len(message) < 12 {
-		err = fmt.Errorf("control message is too small, %d byte, required 12 byte", len(message))
+func unpackTokenResponse(message []byte) (tokenClient, tokenServer int, err error) {
+	if len(message) < tokenResponseSize {
+		err = fmt.Errorf("control message is too small, %d byte, required %d byte", len(message), tokenResponseSize)
 		return
 	}
 	tokenClient = (int(message[3]) << 24) + (int(message[4]) << 16) + (int(message[5]) << 8) + int(message[6])
@@ -113,124 +255,11 @@ func unpackCtrlMsgWithToken(message []byte) (tokenServer, tokenClient int, err e
 	return
 }
 
-// ParseAndSetServerToken updates the server's token from a received
-func (t *TokenPacket) parseAndSetServerToken(responseMessage []byte) (rest []byte, err error) {
-	serverToken, clientToken, err := unpackCtrlMsgWithToken(responseMessage)
-	if err != nil {
-		return
-	}
-
-	// update server token in any case
-	t.serverToken = serverToken
-
-	if clientToken != t.clientToken {
-		err = fmt.Errorf("client token mismatch: expected %d received: %d", t.clientToken, clientToken)
-	}
-
-	t.expiresAt = time.Now().Add(tokenRefreshTimeSeconds * time.Second)
-
-	// return the rest after parsing
-	rest = responseMessage[12:]
-	return
-}
-
-// ParseAndSetServerToken updates the server's token from a received
-func (t *TokenPacket) ParseAndSetServerToken(responseMessage []byte) (err error) {
-	serverToken, clientToken, err := unpackCtrlMsgWithToken(responseMessage)
-	if err != nil {
-		return
-	}
-
-	// update server token in any case
-	t.serverToken = serverToken
-
-	if clientToken != t.clientToken {
-		err = fmt.Errorf("client token mismatch: expected %d received: %d", t.clientToken, clientToken)
-	}
-
-	t.expiresAt = time.Now().Add(tokenRefreshTimeSeconds * time.Second)
-	return
-}
-
-// BrowserPacket encapsulates a Teeworlds packat that is sent by the server browser.
-type BrowserPacket struct {
-	token          TokenPacket
-	payload        Packet
-	responseHeader Packet
-	reads          int
-}
-
-// NewBrowserPacket creates a new browserpacket
-func NewBrowserPacket() (*TokenPacket, *BrowserPacket) {
-	bp := BrowserPacket{}
-	bp.token.Generate()
-
-	return &bp.token, &bp
-}
-
-// Token returns a pointer to the underlying token
-// this is used in order to further check if the token already expired.
-func (bp *BrowserPacket) Token() *TokenPacket {
-	return &bp.token
-}
-
-// Reset resets the state to allow for another read
-func (bp *BrowserPacket) Reset() {
-	bp.reads = 0
-	bp.token.Reset()
-	bp.payload.Reset()
-}
-
-// Read data from token header and payload.
-func (bp *BrowserPacket) Read(p []byte) (n int, err error) {
-	if bp.token.Expired() {
-		return 0, errors.New("token expired")
-	}
-	if bp.reads == 0 && bp.token.Len() == 0 {
-
-	}
-
-	tokenSize, err1 := bp.token.Read(p)
-	payloadSize, err2 := bp.payload.Read(p)
-	bp.reads++
-
-	if err1 == io.EOF && err2 == io.EOF {
-		return 0, io.EOF
-	}
-
-	n = tokenSize + payloadSize
-	return
-}
-
-// Write data into payload.
-func (bp *BrowserPacket) Write(p []byte) (n int, err error) {
-	n, err = bp.payload.Write(p)
-	return
-}
-
-// ParseAndSetServerToken updates the internal token timeout as well as the internal server token that is used to
-// secure the connection. The token allows for further requests that are not solely the connection.
-func (bp *BrowserPacket) ParseAndSetServerToken(responseMessage []byte) (err error) {
-	err = bp.token.ParseAndSetServerToken(responseMessage)
-	return
-}
-
-// ClientToken returns the client token
-func (bp *BrowserPacket) ClientToken() int {
-	return bp.token.ClientToken()
-}
-
-// ServerToken returns the server token
-func (bp *BrowserPacket) ServerToken() int {
-	return bp.token.ServerToken()
-}
-
-func packTokenHeader(tokenClient, tokenServer int, packetConstant string) (header []byte) {
+func packToken(tokenClient, tokenServer int) (header []byte) {
 	const netPacketFlagConnless = 8
 	const netPacketVersion = 1
 
-	binaryPacketConstant := []byte(packetConstant)
-	header = make([]byte, 9, 9+len(binaryPacketConstant))
+	header = make([]byte, tokenRequestSize)
 
 	// Header
 	header[0] = ((netPacketFlagConnless << 2) & 0b11111100) | (netPacketVersion & 0b00000011)
@@ -244,94 +273,5 @@ func packTokenHeader(tokenClient, tokenServer int, packetConstant string) (heade
 	header[7] = byte(tokenClient >> 8)
 	header[8] = byte(tokenClient)
 
-	header = append(header, binaryPacketConstant...)
-	return
-}
-
-// AddPayloadConstant adds a request header to the Packet
-func (bp *BrowserPacket) addPayloadConstant(packetConstant string) {
-	bp.payload.Write(packTokenHeader(bp.ClientToken(), bp.ServerToken(), packetConstant))
-}
-
-// AddResponseConstant initializes the expected response header
-func (bp *BrowserPacket) addResponseConstant(packetConstant string) {
-	bp.responseHeader.Write(packTokenHeader(bp.ServerToken(), bp.ClientToken(), packetConstant))
-}
-
-// AddResponseConstant initializes the expected response header
-func (bp *BrowserPacket) responseHeaderOk(responseMessage []byte) (data []byte, ok bool) {
-	expectedLen := bp.responseHeader.Len()
-
-	if len(responseMessage) < expectedLen {
-		data = responseMessage
-		ok = false
-		return
-	}
-	receivedHeader := responseMessage[:expectedLen]
-
-	if bytes.Compare(receivedHeader, bp.responseHeader.Bytes()) == 0 {
-		ok = true
-	}
-
-	data = responseMessage[expectedLen:]
-	return
-
-}
-
-// ServerListPacket is used to request the server list from the master server
-type ServerListPacket struct {
-	*BrowserPacket
-}
-
-// NewServerListPacket returns a new server list request packet
-func NewServerListPacket() (*TokenPacket, *ServerListPacket) {
-
-	tp, bp := NewBrowserPacket()
-	slp := &ServerListPacket{bp}
-
-	slp.addPayloadConstant(requestServerList)
-	slp.addResponseConstant(sendServerList)
-	return tp, slp
-}
-
-// ParseServerListResponse returns a server list from
-func (slp *ServerListPacket) ParseServerListResponse(responseMessage []byte) (serverList []net.UDPAddr, err error) {
-	// create buffer for server addresses
-	serverList = make([]net.UDPAddr, 0, 1)
-
-	// parse received handshake token
-	rest, err := slp.BrowserPacket.token.parseAndSetServerToken(responseMessage)
-
-	// parse header and compare with expected header
-	data, ok := slp.BrowserPacket.responseHeaderOk(rest)
-	if !ok {
-		err = errors.New("response header mismatch")
-		return
-	}
-
-	// parse server list
-	numServers := len(data) / 18 // 18 byte, 16 for IPv4/IPv6 and 2 bytes for the port
-	serverList = make([]net.UDPAddr, 0, numServers)
-
-	// fixed size array
-	ipv4Prefix := [12]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF}
-
-	for idx := 0; idx < numServers; idx++ {
-		ip := []byte{}
-
-		// compare byte slices
-		if bytes.Equal(ipv4Prefix[:], data[idx*18:idx*18+12]) {
-			// IPv4 has a prefix
-			ip = data[idx*18+12 : idx*18+16]
-		} else {
-			// full IP is the IPv6 otherwise
-			ip = data[idx*18 : idx*18+16]
-		}
-
-		serverList = append(serverList, net.UDPAddr{
-			IP:   ip,
-			Port: (int(data[idx*18+16]) << 8) + int(data[idx*18+17]),
-		})
-	}
 	return
 }

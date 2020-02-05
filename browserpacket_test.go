@@ -1,25 +1,19 @@
-package main
+package twapi
 
 import (
-	"encoding/hex"
 	"net"
 	"testing"
 	"time"
 )
 
-func sendBytesToMasterServerAndAwait(r []byte, t *testing.T) (responseMessage []byte) {
+const (
+	doTimedTests = false // tests with timeouts
+)
 
-	address := "master1.teeworlds.com:8283"
-
-	raddr, err := net.ResolveUDPAddr("udp", address)
+func sendBytesToServer(r []byte, raddr net.UDPAddr, t *testing.T) (addr net.Addr, responseMessage []byte) {
+	conn, err := net.DialUDP("udp", nil, &raddr)
 	if err != nil {
-		t.Errorf("NewMasterServerFromAddress: %s : %s", address, err)
-		return
-	}
-
-	conn, err := net.DialUDP("udp", nil, raddr)
-	if err != nil {
-		t.Errorf("NewMasterServerFromAddress: %s : %s", address, err)
+		t.Errorf("NewMasterServerFromAddress: %s : %s", raddr.String(), err)
 		return
 	}
 	defer conn.Close()
@@ -38,7 +32,7 @@ func sendBytesToMasterServerAndAwait(r []byte, t *testing.T) (responseMessage []
 		return
 	}
 
-	buffer := make([]byte, 1500)
+	buffer := make([]byte, 1500*16) // max payload of a tw server is 1400
 	readBytes, addr, err := conn.ReadFrom(buffer)
 	if err != nil {
 		t.Error(err)
@@ -50,10 +44,125 @@ func sendBytesToMasterServerAndAwait(r []byte, t *testing.T) (responseMessage []
 	return
 }
 
-func TestTokenPacket(t *testing.T) {
+func sendBytesToMasterServerAndAwait(r []byte, t *testing.T) (addr net.Addr, responseMessage []byte) {
+
+	address := "master1.teeworlds.com:8283"
+
+	raddr, err := net.ResolveUDPAddr("udp", address)
+	if err != nil {
+		t.Errorf("NewMasterServerFromAddress: %s : %s", address, err)
+		return
+	}
+
+	addr, responseMessage = sendBytesToServer(r, *raddr, t)
+	return
+}
+
+func TestTokenPacketAndServerList(t *testing.T) {
 	reqToken := NewTokenRequestPacket()
 
-	response := sendBytesToMasterServerAndAwait(reqToken, t)
+	_, response := sendBytesToMasterServerAndAwait(reqToken, t)
+
+	match, err := MatchResponse(response)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if match != "token" {
+		t.Errorf("invalid match: %s", match)
+		return
+	}
+
+	token, err := NewToken(response)
+
+	t.Log(token.String())
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	srvListReq, err := NewServerListRequestPacket(token)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if doTimedTests {
+		// retrieved token, token expires in 16 seconds
+		time.Sleep(16 * time.Second)
+	}
+
+	_, response = sendBytesToMasterServerAndAwait(srvListReq, t)
+
+	if (len(response)-9-8)%18 != 0 {
+		t.Errorf("invalid response length for server list: %d", len(response))
+	}
+
+	match, err = MatchResponse(response)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if match != "serverlist" {
+		t.Errorf("invalid match: %s", match)
+		return
+	}
+
+	serverList, err := NewServerList(response)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	t.Logf("Servers retrieved: %d\n", len(serverList))
+}
+
+func TestServerCount(t *testing.T) {
+	reqToken := NewTokenRequestPacket()
+
+	_, response := sendBytesToMasterServerAndAwait(reqToken, t)
+
+	token, err := NewToken(response)
+
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	srvCountReq, err := NewServerCountRequestPacket(token)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	_, response = sendBytesToMasterServerAndAwait(srvCountReq, t)
+	count, err := NewServerCount(response)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	match, err := MatchResponse(response)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if match != "servercount" {
+		t.Errorf("invalid match: %s", match)
+		return
+	}
+
+	t.Logf("Server count: %d", count)
+}
+
+func TestServerInfo(t *testing.T) {
+	reqToken := NewTokenRequestPacket()
+
+	_, response := sendBytesToMasterServerAndAwait(reqToken, t)
 
 	token, err := NewToken(response)
 
@@ -68,27 +177,46 @@ func TestTokenPacket(t *testing.T) {
 		return
 	}
 
-	response = sendBytesToMasterServerAndAwait(srvListReq, t)
-	t.Logf("Response: \n%s\n", hex.Dump(response[:100]))
+	_, response = sendBytesToMasterServerAndAwait(srvListReq, t)
 
-	serverList, _, err := NewServerList(response)
+	serverList, err := NewServerList(response)
 	if err != nil {
 		t.Error(err)
 		return
 	}
 
-	t.Log(len(serverList))
+	reqToken = NewTokenRequestPacket()
 
-	for _, srv := range serverList {
-		t.Error(srv.String())
+	_, response = sendBytesToServer(reqToken, serverList[0], t)
+	token, err = NewToken(response)
+	if err != nil {
+		t.Error(err)
+		return
 	}
-	t.Error("Intended")
-}
 
-func TestServerTokenMasterServer(t *testing.T) {
+	srvInfoReq, err := NewServerInfoRequestPacket(token)
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-}
+	addr, response := sendBytesToServer(srvInfoReq, serverList[0], t)
+	serverInfo, err := NewServerInfo(response, addr)
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-func TestServerListToken(t *testing.T) {
+	match, err := MatchResponse(response)
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
+	if match != "serverinfo" {
+		t.Errorf("invalid match: %s", match)
+		return
+	}
+
+	t.Logf("Server count: %s", serverInfo.String())
 }

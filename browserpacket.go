@@ -1,4 +1,4 @@
-package main
+package twapi
 
 import (
 	"bytes"
@@ -21,8 +21,14 @@ const (
 	requestInfo = "\xff\xff\xff\xffgie3\x00" // need explicitly the trailing \x00
 	sendInfo    = "\xff\xff\xff\xffinf3\x00"
 
-	tokenResponseSize = 12
-	tokenRequestSize  = 9
+	minHeaderLength = 8 // length of the shortest header
+	maxHeaderLength = 9 // length of the longest header
+
+	tokenResponseSize = 12 // size of the token that is sent after the TokenRequest
+	tokenPrefixSize   = 9  // size of the token that is sent as prefix to every follow up message.
+
+	minPrefixLength = tokenResponseSize
+	maxPrefixLength = tokenPrefixSize + maxHeaderLength
 )
 
 var (
@@ -32,16 +38,26 @@ var (
 	// ErrInvalidResponseMessage is returned when a passed response message does not contain the expected data.
 	ErrInvalidResponseMessage = errors.New("invalid response message")
 
+	// ErrInvalidHeaderLength is returned, if a too short byte slice is passed to some of the parsing methods
+	ErrInvalidHeaderLength = errors.New("invalid header length")
+
+	// ErrInvalidHeaderFlags is returned, if the first byte of a response message does not corespond to the expected flags.
+	ErrInvalidHeaderFlags = errors.New("invalid header flags")
+
+	// ErrUnexpectedResponseHeader is returned, if a message is passed to a parsing function, that expects a different response
+	ErrUnexpectedResponseHeader = errors.New("unexpected response header")
+
 	// TokenExpirationDuration sets the protocol expiration time of a token
 	// This variable can be changed
-	TokenExpirationDuration = time.Second * 90
+	TokenExpirationDuration = time.Second * 16
 
-	requestServerListRaw  = []byte(string(requestServerList))
-	sendServerListRaw     = []byte(string(sendServerList))
-	requestServerCountRaw = []byte(string(requestServerCount))
-	sendServerCountRaw    = []byte(string(sendServerCount))
-	requestInfoRaw        = []byte(string(requestInfo))
-	sendInfoRaw           = []byte(string(sendInfo))
+	requestServerListRaw  = []byte(requestServerList)
+	sendServerListRaw     = []byte(sendServerList)
+	requestServerCountRaw = []byte(requestServerCount)
+	sendServerCountRaw    = []byte(sendServerCount)
+	requestInfoRaw        = []byte(requestInfo)
+	sendInfoRaw           = []byte(sendInfo)
+	delimiter             = []byte("\x00")
 )
 
 // TokenRequestPacket can be sent to request a new token from the
@@ -59,13 +75,66 @@ type ServerInfoRequestPacket []byte
 // ServerList is the result type of a serer list request
 type ServerList []net.UDPAddr
 
-// type ServerInfo struct {
-// 	//...
-// 	Players []PlayerInfo
-// }
-// type PlayerInfo struct {
-// 	//...
-// }
+// ServerInfo contains the server's general information
+type ServerInfo struct {
+	Address     string
+	Version     string
+	Name        string
+	Hostname    string
+	Map         string
+	GameType    string
+	ServerFlags int
+	SkillLevel  int
+	NumPlayers  int
+	MaxPlayers  int
+	NumClients  int
+	MaxClients  int
+	Players     []PlayerInfo
+	Date        time.Time
+}
+
+// Valid returns true is the struct contains valid data
+func (s *ServerInfo) Valid() bool {
+	return s.Address != "" && s.Map != ""
+}
+
+func (s *ServerInfo) String() string {
+	base := fmt.Sprintf("\nHostname: %10s\nAddress: %20s\nVersion: '%10s'\nName: '%s'\nGameType: %s\nMap: %s\nServerFlags: %b\nSkilllevel: %d\n%d/%d Players \n%d/%d Clients\nDate: %s\n",
+		s.Hostname,
+		s.Address,
+		s.Version,
+		s.Name,
+		s.GameType,
+		s.Map,
+		s.ServerFlags,
+		s.SkillLevel,
+		s.NumPlayers,
+		s.MaxPlayers,
+		s.NumClients,
+		s.MaxClients,
+		s.Date.Local().String())
+	sb := strings.Builder{}
+	sb.Grow(256 + s.NumClients*128)
+	sb.WriteString(base)
+
+	for _, p := range s.Players {
+		sb.WriteString(p.String())
+	}
+	return sb.String()
+}
+
+// PlayerInfo contains a players externally visible information
+type PlayerInfo struct {
+	Name    string
+	Clan    string
+	Type    int
+	Country int
+	Score   int
+}
+
+func (p *PlayerInfo) String() string {
+	return fmt.Sprintf("Name=%27s Clan=%13s Type=%1d Country=%3d Score=%6d\n", p.Name, p.Clan, p.Type, p.Country, p.Score)
+}
 
 // Token is used to request information from either master of game servers.
 // The token needs to be renewed via NewTokenRequestPacket()
@@ -82,6 +151,16 @@ func (ts *Token) Expired() bool {
 	return ts.expiresAt.Before(time.Now())
 }
 
+// Equal tests if two token contain the same payload
+func (ts *Token) Equal(t Token) bool {
+	return bytes.Equal(ts.Payload, t.Payload)
+}
+
+// String implements the Stringer interface and returns a stringrepresentation of the token
+func (ts *Token) String() string {
+	return fmt.Sprintf("Token(%d): Client: %d Server: %d Expires: %s", len(ts.Payload), ts.client, ts.server, ts.expiresAt.String())
+}
+
 // NewTokenRequestPacket generates a new token request packet that can be
 // used to request fo a new server token
 func NewTokenRequestPacket() TokenRequestPacket {
@@ -89,7 +168,6 @@ func NewTokenRequestPacket() TokenRequestPacket {
 	randomNumberGenerator := rand.New(seedSource)
 
 	clientToken := int(randomNumberGenerator.Int31())
-	clientToken = 66666
 	serverToken := -1
 
 	header := packTokenRequest(clientToken, serverToken)
@@ -107,7 +185,7 @@ func NewTokenRequestPacket() TokenRequestPacket {
 func NewToken(serverResponse []byte) (Token, error) {
 	tokenClient, tokenServer, err := unpackTokenResponse(serverResponse)
 	if err != nil {
-		return Token{}, ErrInvalidResponseMessage
+		return Token{}, err
 	}
 
 	header := packToken(tokenClient, tokenServer)
@@ -157,24 +235,45 @@ func NewServerInfoRequestPacket(t Token) (ServerInfoRequestPacket, error) {
 	return ServerInfoRequestPacket(payload), nil
 }
 
+// MatchResponse matches a respnse to a specific string
+// "", ErrInvalidResponseMessage -> if response message contains invalid data
+// "", ErrInvalidHeaderLength -> if response message is too short
+// "token" - token response
+// "serverlist" - server list response
+// "servercount" - server count response
+// "serverinfo" - server info response
+func MatchResponse(responseMessage []byte) (string, error) {
+	if len(responseMessage) < minPrefixLength {
+		return "", ErrInvalidHeaderLength
+	}
+
+	if len(responseMessage) == 12 {
+		return "token", nil
+	} else if bytes.Equal(sendServerListRaw, responseMessage[tokenPrefixSize:tokenPrefixSize+len(sendServerListRaw)]) {
+		return "serverlist", nil
+	} else if bytes.Equal(sendServerCountRaw, responseMessage[tokenPrefixSize:tokenPrefixSize+len(sendServerCountRaw)]) {
+		return "servercount", nil
+	} else if bytes.Equal(sendInfoRaw, responseMessage[tokenPrefixSize:tokenPrefixSize+len(sendInfoRaw)]) {
+		return "serverinfo", nil
+	}
+	return "", ErrInvalidResponseMessage
+}
+
 // NewServerList parses the response server list
-func NewServerList(serverResponse []byte) (ServerList, Token, error) {
-	if len(serverResponse) < tokenResponseSize+len(sendServerListRaw) {
-		return nil, Token{}, ErrInvalidResponseMessage
+func NewServerList(serverResponse []byte) (ServerList, error) {
+	if len(serverResponse) < tokenPrefixSize+len(sendServerListRaw) {
+		return nil, ErrInvalidResponseMessage
 	}
 
-	token, err := NewToken(serverResponse[:tokenResponseSize])
-	if err != nil {
-		return nil, Token{}, err
+	//newTokenFromFollowUpRequest(serverResponse[:tokenPrefixSize])
+
+	responseHeaderRaw := serverResponse[tokenPrefixSize : tokenPrefixSize+len(sendServerListRaw)]
+
+	if !bytes.Equal(responseHeaderRaw, sendServerListRaw) {
+		return nil, ErrUnexpectedResponseHeader
 	}
 
-	responseHeader := string(serverResponse[tokenResponseSize : tokenResponseSize+len(sendServerListRaw)])
-
-	if strings.Compare(responseHeader, "\xff\xff\xff\xfflis2") != 0 {
-		return nil, Token{}, ErrInvalidResponseMessage
-	}
-
-	data := serverResponse[tokenResponseSize+len(sendServerListRaw):]
+	data := serverResponse[tokenPrefixSize+len(sendServerListRaw):]
 
 	/*
 		each server information contains of 18 bytes
@@ -184,7 +283,7 @@ func NewServerList(serverResponse []byte) (ServerList, Token, error) {
 		if the first 12 bytes match the defined pefix, the IP is parsed as IPv4
 		and if it does not match, the IP is parsed as IPv6
 	*/
-	numServers := len(data) / 18 // 18 byte, 16 for IPv4/IPv6 and 2 bytes for the port
+	numServers := len(data) / 18 // 18 bytes, 16 for IPv4/IPv6 and 2 bytes for the port
 	serverList := make([]net.UDPAddr, 0, numServers)
 
 	// fixed size array
@@ -208,17 +307,96 @@ func NewServerList(serverResponse []byte) (ServerList, Token, error) {
 		})
 	}
 
-	return serverList, token, nil
+	return serverList, nil
 
 }
 
-// func NewServerCount(serverResponse []byte) (int, Token, error) {
+// NewServerCount parses the response and returns the number of currently registered servers.
+func NewServerCount(serverResponse []byte) (int, error) {
+	if len(serverResponse) < tokenPrefixSize+len(sendServerListRaw) {
+		return 0, ErrInvalidResponseMessage
+	}
 
-// }
+	responseHeaderRaw := serverResponse[tokenPrefixSize : tokenPrefixSize+len(sendServerListRaw)]
 
-// func NewServerInfo(serverResponse []byte) (ServerInfo, Token, error) {
+	if !bytes.Equal(responseHeaderRaw, sendServerCountRaw) {
+		return 0, ErrUnexpectedResponseHeader
+	}
 
-// }
+	data := serverResponse[tokenPrefixSize+len(sendServerListRaw):]
+
+	if len(data) > 4 {
+		return 0, ErrInvalidResponseMessage
+	}
+
+	count := 0
+	for idx, b := range data {
+		count |= (int(b) << ((len(data) - 1) - idx))
+	}
+
+	return count, nil
+}
+
+// NewServerInfo parses the serrver's server info response
+func NewServerInfo(serverResponse []byte, address net.Addr) (ServerInfo, error) {
+	if len(serverResponse) < tokenPrefixSize+len(sendInfoRaw) {
+		return ServerInfo{}, ErrInvalidResponseMessage
+	}
+
+	responseHeaderRaw := serverResponse[tokenPrefixSize : tokenPrefixSize+len(sendInfoRaw)]
+
+	if !bytes.Equal(responseHeaderRaw, sendInfoRaw) {
+		return ServerInfo{}, ErrUnexpectedResponseHeader
+	}
+
+	data := serverResponse[tokenPrefixSize+len(sendInfoRaw):]
+
+	info := ServerInfo{}
+
+	slots := bytes.SplitN(data, delimiter[:], 6) // create 6 slots
+
+	info.Address = address.String()
+	info.Version = string(slots[0])
+	info.Name = string(slots[1])
+	info.Hostname = string(slots[2])
+	info.Map = string(slots[3])
+	info.GameType = string(slots[4])
+
+	data = slots[5] // get next raw data chunk
+
+	info.ServerFlags = int(data[0])
+	info.SkillLevel = int(data[1])
+
+	data = data[2:] // skip first two already evaluated bytes
+	v := NewVarIntFrom(data)
+	info.NumPlayers = v.Unpack()
+	info.MaxPlayers = v.Unpack()
+	info.NumClients = v.Unpack()
+	info.MaxClients = v.Unpack()
+
+	// preallocate space for player pointers
+	info.Players = make([]PlayerInfo, 0, info.NumClients)
+
+	data = v.Data() // return the not yet used remaining data
+
+	for i := 0; i < info.NumClients; i++ {
+		player := PlayerInfo{}
+
+		slots := bytes.SplitN(v.Data(), []byte("\x00"), 3) // create 3 slots
+
+		player.Name = string(slots[0])
+		player.Clan = string(slots[1])
+
+		v = NewVarIntFrom(slots[2])
+		player.Country = v.Unpack()
+		player.Score = v.Unpack()
+		player.Type = v.Unpack()
+
+		info.Players = append(info.Players, player)
+	}
+
+	return info, nil
+}
 
 // packs header
 func packTokenRequest(tokenClient, tokenServer int) []byte {
@@ -227,7 +405,9 @@ func packTokenRequest(tokenClient, tokenServer int) []byte {
 	const netTokenRequestDataSize = 512
 
 	const size = 4 + 3 + netTokenRequestDataSize
-	b := make([]byte, size)
+
+	a := [size]byte{}
+	b := a[:]
 
 	// Header
 	b[0] = (netPacketFlagControl << 2) & 0b11111100
@@ -244,22 +424,58 @@ func packTokenRequest(tokenClient, tokenServer int) []byte {
 	return b
 }
 
-// unpacks header
+// retrieve token from specific "token response" message.
+// that message is the explicit answer to the token request
 func unpackTokenResponse(message []byte) (tokenClient, tokenServer int, err error) {
 	if len(message) < tokenResponseSize {
-		err = fmt.Errorf("control message is too small, %d byte, required %d byte", len(message), tokenResponseSize)
+		err = ErrInvalidHeaderLength
 		return
 	}
+
 	tokenClient = (int(message[3]) << 24) + (int(message[4]) << 16) + (int(message[5]) << 8) + int(message[6])
 	tokenServer = (int(message[8]) << 24) + (int(message[9]) << 16) + (int(message[10]) << 8) + int(message[11])
 	return
 }
 
+// // Followup requests have a different token representation than the initial token request.
+// func newTokenFromFollowUpRequest(serverResponse []byte) (Token, error) {
+// 	tokenClient, tokenServer, err := unpackToken(serverResponse)
+
+// 	if err != nil {
+// 		return Token{}, err
+// 	}
+
+// 	header := packToken(tokenClient, tokenServer)
+
+// 	return Token{header, time.Now().Add(TokenExpirationDuration - 1*time.Second), tokenClient, tokenServer}, nil
+// }
+
+// func unpackToken(message []byte) (tokenClient, tokenServer int, err error) {
+// 	if len(message) < tokenPrefixSize {
+// 		err = ErrInvalidHeaderLength
+// 		return
+// 	}
+
+// 	const netPacketFlagConnless = 8
+// 	const netPacketVersion = 1
+// 	const headerFlags = ((netPacketFlagConnless << 2) & 0b11111100) | (netPacketVersion & 0b00000011)
+
+// 	if message[0] != headerFlags {
+// 		err = ErrInvalidHeaderFlags
+// 		return
+// 	}
+
+// 	tokenClient = (int(message[1]) << 24) + (int(message[2]) << 16) + (int(message[3]) << 8) + int(message[4])
+// 	tokenServer = (int(message[5]) << 24) + (int(message[6]) << 16) + (int(message[7]) << 8) + int(message[8])
+// 	return
+// }
+
 func packToken(tokenClient, tokenServer int) (header []byte) {
 	const netPacketFlagConnless = 8
 	const netPacketVersion = 1
 
-	header = make([]byte, tokenRequestSize)
+	a := [tokenPrefixSize]byte{}
+	header = a[:]
 
 	// Header
 	header[0] = ((netPacketFlagConnless << 2) & 0b11111100) | (netPacketVersion & 0b00000011)

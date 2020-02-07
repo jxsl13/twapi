@@ -270,3 +270,32 @@ func TestVarInt_Unpack(t *testing.T) {
 	}
 
 }
+
+func TestVarInt_Grow(t *testing.T) {
+	type fields struct {
+		Compressed []byte
+	}
+	type args struct {
+		n int
+	}
+	tests := []struct {
+		name     string
+		fields   fields
+		args     args
+		capacity int
+	}{
+		{"default constructed", fields{nil}, args{0}, 5},
+		{"grow after already containing data", fields{[]byte{1, 2, 3, 4, 5}}, args{33}, 38},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := &VarInt{
+				Compressed: tt.fields.Compressed,
+			}
+			v.Grow(tt.args.n)
+			if cap(v.Compressed) != tt.capacity {
+				t.Errorf("VarInt.Grow() = %v, want %v", cap(v.Compressed), tt.capacity)
+			}
+		})
+	}
+}

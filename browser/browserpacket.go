@@ -1,9 +1,10 @@
-package twapi
+package browser
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/jxsl13/twapi/compression"
 	"math/rand"
 	"net"
 	"strings"
@@ -368,7 +369,7 @@ func ParseServerInfo(serverResponse []byte, address net.Addr) (ServerInfo, error
 	info.SkillLevel = int(data[1])
 
 	data = data[2:] // skip first two already evaluated bytes
-	v := NewVarIntFrom(data)
+	v := compression.NewVarIntFrom(data)
 	info.NumPlayers = v.Unpack()
 	info.MaxPlayers = v.Unpack()
 	info.NumClients = v.Unpack()

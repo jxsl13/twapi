@@ -1,4 +1,4 @@
-package twapi
+package compression
 
 import (
 	"math"

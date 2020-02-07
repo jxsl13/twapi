@@ -9,10 +9,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/jxsl13/twapi/browser"
 	"net"
 	"time"
-
-	"github.com/jxsl13/twapi"
 )
 
 func main() {
@@ -31,7 +30,7 @@ func main() {
 	defer conn.Close()
 
 	// token request packet
-	tokenReq := twapi.NewTokenRequestPacket()
+	tokenReq := browser.NewTokenRequestPacket()
 
 	// send request
 	written, err := conn.Write(tokenReq)
@@ -55,12 +54,12 @@ func main() {
 	fmt.Printf("read: %d bytes from %s\n", written, conn.RemoteAddr().String())
 
 	// create toke from response
-	token, err := twapi.ParseToken(bufSlice)
+	token, err := browser.ParseToken(bufSlice)
 	// reset slice
 	bufSlice = bufSlice[:1500]
 
 	// create a new request from token
-	serverListReq, err := twapi.ParseServerListRequestPacket(token)
+	serverListReq, err := browser.ParseServerListRequestPacket(token)
 
 	// Send server list request
 	written, err = conn.Write(serverListReq)
@@ -79,7 +78,7 @@ func main() {
 	bufSlice = bufSlice[:read]
 	fmt.Printf("read: %d bytes from %s\n", written, conn.RemoteAddr().String())
 
-	serverList, err := twapi.NewServerList(bufSlice)
+	serverList, err := browser.NewServerList(bufSlice)
 	if err != nil {
 		fmt.Println(err)
 		return

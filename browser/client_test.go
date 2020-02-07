@@ -32,7 +32,7 @@ func getServerInfo(addr *net.UDPAddr, t *testing.T, wg *sync.WaitGroup, cnt *asy
 	}
 	defer conn.Close()
 
-	resp, err := RetryFetchToken(conn, 5*time.Second)
+	resp, err := FetchToken(conn, 5*time.Second)
 	if err != nil {
 		if errors.Is(err, ErrTimeout) {
 			t.Log(err)
@@ -50,7 +50,7 @@ func getServerInfo(addr *net.UDPAddr, t *testing.T, wg *sync.WaitGroup, cnt *asy
 		return
 	}
 
-	resp, err = RetryFetch("serverinfo", token, conn, 10*time.Second)
+	resp, err = Fetch("serverinfo", token, conn, 10*time.Second)
 	if err != nil {
 		t.Log(err)
 		return
@@ -67,7 +67,7 @@ func getServerInfo(addr *net.UDPAddr, t *testing.T, wg *sync.WaitGroup, cnt *asy
 
 }
 
-func TestRetryFetch(t *testing.T) {
+func TestFetchServerListAndInfo(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", "master1.teeworlds.com:8283")
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +81,7 @@ func TestRetryFetch(t *testing.T) {
 	defer conn.Close()
 
 	var resp []byte
-	resp, err = RetryFetchToken(conn, 5*time.Second)
+	resp, err = FetchToken(conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestRetryFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err = RetryFetch("serverlist", token, conn, 5*time.Second)
+	resp, err = Fetch("serverlist", token, conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,4 +113,41 @@ func TestRetryFetch(t *testing.T) {
 
 	wg.Wait()
 	t.Logf("Server Infos retrieved: %s/%d", cnt.String(), len(serverList))
+}
+
+func TestFetchServerCount(t *testing.T) {
+	addr, err := net.ResolveUDPAddr("udp", "master2.teeworlds.com:8283")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn, err := net.DialUDP("udp", nil, addr)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	var resp []byte
+	resp, err = FetchToken(conn, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var token Token
+	token, err = ParseToken(resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err = Fetch("servercount", token, conn, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	serverCount, err := ParseServerCount(resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("Servers fetched: %d", serverCount)
 }

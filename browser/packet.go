@@ -266,8 +266,7 @@ func packTokenRequest(tokenClient, tokenServer int) []byte {
 
 	const size = 4 + 3 + netTokenRequestDataSize
 
-	a := [size]byte{}
-	b := a[:]
+	b := make([]byte, size)
 
 	// Header
 	b[0] = (netPacketFlagControl << 2) & 0b11111100
@@ -301,8 +300,7 @@ func packToken(tokenClient, tokenServer int) (header []byte) {
 	const netPacketFlagConnless = 8
 	const netPacketVersion = 1
 
-	a := [tokenPrefixSize]byte{}
-	header = a[:]
+	header = make([]byte, tokenPrefixSize)
 
 	// Header
 	header[0] = ((netPacketFlagConnless << 2) & 0b11111100) | (netPacketVersion & 0b00000011)

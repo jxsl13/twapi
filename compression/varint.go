@@ -1,6 +1,12 @@
 package compression
 
-import "unsafe"
+import (
+	"errors"
+	"unsafe"
+)
+
+// ErrNoDataToUnpack is returned if the compressed array doe snot have sufficient data to unpack
+var ErrNoDataToUnpack = errors.New("no data")
 
 // VarInt is used to compress integers in a variable length format.
 // Format: ESDDDDDD EDDDDDDD EDD... Extended, Data, Sign
@@ -52,7 +58,7 @@ func (v *VarInt) Grow(n int) {
 }
 
 // Unpack the wrapped Compressed buffer
-func (v *VarInt) Unpack() (value int) {
+func (v *VarInt) Unpack() (value int, err error) {
 
 	if v.Compressed == nil {
 		v.Clear()

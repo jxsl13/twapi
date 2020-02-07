@@ -55,7 +55,7 @@ func TestPack(t *testing.T) {
 	for i := -20000000; i < 20000000; i++ {
 		v.Clear()
 		v.Pack(i)
-		j := v.Unpack()
+		j, _ := v.Unpack()
 
 		if i != j {
 			t.Errorf("Packed %d, Unpacked to %d", i, j)
@@ -96,7 +96,7 @@ func TestMultiplePacks(t *testing.T) {
 	errors := 0
 	unpackedValue := 0
 	for idx, expectedValue := range numbers {
-		unpackedValue = v.Unpack()
+		unpackedValue, _ = v.Unpack()
 
 		if expectedValue != unpackedValue {
 			errors++
@@ -121,7 +121,7 @@ func TestPackLong(t *testing.T) {
 	toPack := int(3.6028797e16) // 2^55
 	v.Pack(toPack)
 
-	value := v.Unpack()
+	value, _ := v.Unpack()
 	t.Logf("byte needed: %d,packed: %d unpacked: %d", unsafe.Sizeof(toPack), toPack, value)
 	t.Logf("")
 

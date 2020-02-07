@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"time"
 )
 
 var (
@@ -22,6 +23,79 @@ func RequestToken(w io.Writer) (err error) {
 	}
 
 	return
+}
+
+// ReceiveToken reads the token payload from the reader r
+func ReceiveToken(r io.Reader) (response []byte, err error) {
+	response = make([]byte, tokenResponseSize)
+	read, err := r.Read(response)
+	if err != nil {
+		return
+	}
+
+	if read != tokenResponseSize {
+		err = ErrInvalidResponseMessage
+	}
+
+	response = response[:read]
+	return
+}
+
+// FetchToken writes a token request payload to rw and tries to read the response from rw.
+func FetchToken(rw io.ReadWriter) (response []byte, err error) {
+	err = RequestToken(rw)
+	if err != nil {
+		return
+	}
+
+	response, err = ReceiveToken(rw)
+	return
+}
+
+// RetryFetchToken tries to fetch a token from the server for a specific duration at most. a timeout below 35 ms will be set to 35 ms
+func RetryFetchToken(rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
+	if timeout < minTimeout {
+		timeout = minTimeout
+	}
+
+	begin := time.Now()
+	timeLeft := timeout
+	currentTimeout := minTimeout
+	writeBurst := 1
+
+	for {
+		timeLeft = timeout - time.Now().Sub(begin)
+		rwd.SetReadDeadline(time.Now().Add(currentTimeout))
+
+		if timeLeft <= 0 {
+			// early return, because timed out
+			err = ErrTimeout
+			return
+		}
+
+		// send multiple requests
+		for i := 0; i < writeBurst; i++ {
+			err = RequestToken(rwd)
+			if err != nil {
+				return
+			}
+		}
+
+		// wait for response
+		response, err = FetchToken(rwd)
+		if err == nil {
+			return
+		}
+
+		// increase time & request burst
+		timeLeft = timeout - time.Now().Sub(begin)
+		if timeLeft <= currentTimeout {
+			currentTimeout = timeLeft
+		} else {
+			currentTimeout *= 2
+		}
+		writeBurst *= 2
+	}
 }
 
 // Request writes the payload into w.
@@ -51,6 +125,87 @@ func Request(packet string, token Token, w io.Writer) (err error) {
 		err = ErrInvalidWrite
 	}
 	return
+}
+
+// Receive reads the response message and evaluates its validity.
+// If the message is not valid it is still returned.
+func Receive(packet string, r io.Reader) (response []byte, err error) {
+	response = make([]byte, maxBufferSize)
+	read, err := r.Read(response)
+	if err != nil {
+		return
+	}
+
+	if read == 0 {
+		err = ErrInvalidResponseMessage
+	}
+
+	response = response[:read]
+	match, err := MatchResponse(response)
+	if err != nil {
+		return
+	}
+
+	if match != packet {
+		err = ErrRequestResponseMismatch
+	}
+	return
+}
+
+// Fetch writes a specific packet payload to rw and reads the response from rw
+func Fetch(packet string, token Token, rw io.ReadWriter) (response []byte, err error) {
+	err = Request(packet, token, rw)
+	if err != nil {
+		return
+	}
+	response, err = Receive(packet, rw)
+	return
+}
+
+// RetryFetch is the same as Fetch, but it retries fetching data for a specific time.
+func RetryFetch(packet string, token Token, rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
+	if timeout < minTimeout {
+		timeout = minTimeout
+	}
+
+	begin := time.Now()
+	timeLeft := timeout
+	currentTimeout := minTimeout
+	writeBurst := 1
+
+	for {
+		timeLeft = timeout - time.Now().Sub(begin)
+		rwd.SetReadDeadline(time.Now().Add(currentTimeout))
+
+		if timeLeft <= 0 {
+			// early return, because timed out
+			err = ErrTimeout
+			return
+		}
+
+		// send multiple requests
+		for i := 0; i < writeBurst; i++ {
+			err = Request(packet, token, rwd)
+			if err != nil {
+				return
+			}
+		}
+
+		// wait for response
+		response, err = Receive(packet, rwd)
+		if err == nil {
+			return
+		}
+
+		// increase time & request burst
+		timeLeft = timeout - time.Now().Sub(begin)
+		if timeLeft <= currentTimeout {
+			currentTimeout = timeLeft
+		} else {
+			currentTimeout *= 2
+		}
+		writeBurst *= 2
+	}
 }
 
 // MatchResponse matches a respnse to a specific string

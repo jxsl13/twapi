@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"time"
@@ -28,6 +29,10 @@ const (
 
 	minPrefixLength = tokenResponseSize
 	maxPrefixLength = tokenPrefixSize + maxHeaderLength
+
+	maxBufferSize = 1500
+
+	minTimeout = 35 * time.Millisecond
 )
 
 var (
@@ -46,6 +51,12 @@ var (
 	// ErrUnexpectedResponseHeader is returned, if a message is passed to a parsing function, that expects a different response
 	ErrUnexpectedResponseHeader = errors.New("unexpected response header")
 
+	// ErrTimeout is used in Retry functions that support a timeout parameter
+	ErrTimeout = errors.New("timeout")
+
+	// ErrRequestResponseMismatch is returned by functions that request and receive data, but the received data does not match the requested data.
+	ErrRequestResponseMismatch = errors.New("request response mismatch")
+
 	// TokenExpirationDuration sets the protocol expiration time of a token
 	// This variable can be changed
 	TokenExpirationDuration = time.Second * 16
@@ -58,6 +69,48 @@ var (
 	sendInfoRaw           = []byte(sendInfo)
 	delimiter             = []byte("\x00")
 )
+
+// ReadWriteDeadliner narrows the used uparations of the passed type.
+// in order to have a wider range of types that can satisfy this interface.
+type ReadWriteDeadliner interface {
+	io.ReadWriter
+
+	// SetDeadline sets the read and write deadlines associated
+	// with the connection. It is equivalent to calling both
+	// SetReadDeadline and SetWriteDeadline.
+	//
+	// A deadline is an absolute time after which I/O operations
+	// fail with a timeout (see type Error) instead of
+	// blocking. The deadline applies to all future and pending
+	// I/O, not just the immediately following call to Read or
+	// Write. After a deadline has been exceeded, the connection
+	// can be refreshed by setting a deadline in the future.
+	//
+	// An idle timeout can be implemented by repeatedly extending
+	// the deadline after successful Read or Write calls.
+	//
+	// A zero value for t means I/O operations will not time out.
+	//
+	// Note that if a TCP connection has keep-alive turned on,
+	// which is the default unless overridden by Dialer.KeepAlive
+	// or ListenConfig.KeepAlive, then a keep-alive failure may
+	// also return a timeout error. On Unix systems a keep-alive
+	// failure on I/O can be detected using
+	// errors.Is(err, syscall.ETIMEDOUT).
+	SetDeadline(t time.Time) error
+
+	// SetReadDeadline sets the deadline for future Read calls
+	// and any currently-blocked Read call.
+	// A zero value for t means Read will not time out.
+	SetReadDeadline(t time.Time) error
+
+	// SetWriteDeadline sets the deadline for future Write calls
+	// and any currently-blocked Write call.
+	// Even if write times out, it may return n > 0, indicating that
+	// some of the data was successfully written.
+	// A zero value for t means Write will not time out.
+	SetWriteDeadline(t time.Time) error
+}
 
 // TokenRequestPacket can be sent to request a new token from the
 type TokenRequestPacket []byte

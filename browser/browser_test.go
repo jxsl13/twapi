@@ -251,7 +251,7 @@ func TestRequest(t *testing.T) {
 	bufSlice = bufSlice[:read]
 
 	// create toke from response
-	token := Token{}
+	var token Token
 	token, err = ParseToken(bufSlice)
 	// reset slice
 	bufSlice = bufSlice[:1500]
@@ -324,7 +324,7 @@ func TestRequest(t *testing.T) {
 		read, err = connection.Read(bufSlice)
 		bufSlice = bufSlice[:read]
 
-		info := ServerInfo{}
+		var info ServerInfo
 		info, err = ParseServerInfo(bufSlice, addr)
 		if err != nil {
 			t.Fatal(err)

@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/jxsl13/twapi/compression"
 	"math/rand"
 	"net"
 	"strings"
 	"time"
+
+	"github.com/jxsl13/twapi/compression"
 )
 
 const (
@@ -388,7 +389,7 @@ func ParseServerInfo(serverResponse []byte, address net.Addr) (ServerInfo, error
 		player.Name = string(slots[0])
 		player.Clan = string(slots[1])
 
-		v = NewVarIntFrom(slots[2])
+		v = compression.NewVarIntFrom(slots[2])
 		player.Country = v.Unpack()
 		player.Score = v.Unpack()
 		player.Type = v.Unpack()
@@ -437,39 +438,6 @@ func unpackTokenResponse(message []byte) (tokenClient, tokenServer int, err erro
 	tokenServer = (int(message[8]) << 24) + (int(message[9]) << 16) + (int(message[10]) << 8) + int(message[11])
 	return
 }
-
-// // Followup requests have a different token representation than the initial token request.
-// func newTokenFromFollowUpRequest(serverResponse []byte) (Token, error) {
-// 	tokenClient, tokenServer, err := unpackToken(serverResponse)
-
-// 	if err != nil {
-// 		return Token{}, err
-// 	}
-
-// 	header := packToken(tokenClient, tokenServer)
-
-// 	return Token{header, time.Now().Add(TokenExpirationDuration - 1*time.Second), tokenClient, tokenServer}, nil
-// }
-
-// func unpackToken(message []byte) (tokenClient, tokenServer int, err error) {
-// 	if len(message) < tokenPrefixSize {
-// 		err = ErrInvalidHeaderLength
-// 		return
-// 	}
-
-// 	const netPacketFlagConnless = 8
-// 	const netPacketVersion = 1
-// 	const headerFlags = ((netPacketFlagConnless << 2) & 0b11111100) | (netPacketVersion & 0b00000011)
-
-// 	if message[0] != headerFlags {
-// 		err = ErrInvalidHeaderFlags
-// 		return
-// 	}
-
-// 	tokenClient = (int(message[1]) << 24) + (int(message[2]) << 16) + (int(message[3]) << 8) + int(message[4])
-// 	tokenServer = (int(message[5]) << 24) + (int(message[6]) << 16) + (int(message[7]) << 8) + int(message[8])
-// 	return
-// }
 
 func packToken(tokenClient, tokenServer int) (header []byte) {
 	const netPacketFlagConnless = 8

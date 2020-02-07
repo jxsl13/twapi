@@ -9,9 +9,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/jxsl13/twapi/browser"
 	"net"
 	"time"
+
+	"github.com/jxsl13/twapi/browser"
 )
 
 func main() {

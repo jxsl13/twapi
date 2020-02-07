@@ -1,4 +1,4 @@
-# Teeworlds API written in Go ![Test](https://github.com/jxsl13/twapi/workflows/Test/badge.svg) ![Go Report](https://goreportcard.com/badge/github.com/jxsl13/twapi)
+# Teeworlds API written in Go ![Test](https://github.com/jxsl13/twapi/workflows/Test/badge.svg) ![Go Report](https://goreportcard.com/badge/github.com/jxsl13/twapi) [![GoDoc](https://godoc.org/github.com/jxsl13/twapi?status.svg)](https://godoc.org/github.com/jxsl13/twapi) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 Currently this supports only the server browser api.
 It is possible to retrieve data from the masterservers as well as the server information from the game servers.
 

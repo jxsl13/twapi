@@ -47,10 +47,14 @@ func (v *VarInt) Clear() {
 // Grow increases size of the underlying array to fit another n elements
 func (v *VarInt) Grow(n int) {
 	if v.Compressed == nil {
-		v.Compressed = make([]byte, 0, n)
-	} else {
-
+		if n < 5 {
+			v.Compressed = make([]byte, 0, 5)
+		} else {
+			v.Compressed = make([]byte, 0, n)
+		}
+		return
 	}
+
 	newBuffer := make([]byte, len(v.Compressed), cap(v.Compressed)+n)
 	copy(newBuffer, v.Compressed)
 

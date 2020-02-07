@@ -81,14 +81,13 @@ func TestRetryFetch(t *testing.T) {
 	defer conn.Close()
 
 	var resp []byte
-	var token Token
-
 	resp, err = RetryFetchToken(conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	token, err := ParseToken(resp)
+	var token Token
+	token, err = ParseToken(resp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,22 +103,12 @@ func TestRetryFetch(t *testing.T) {
 	}
 
 	// fetch serer count
-	resp, err = RetryFetchToken(conn, 4*time.Second)
+	resp, err = RetryFetchToken(conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	token, err = ParseToken(resp)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resp, err = RetryFetch("servercount", token, conn, 4*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	serverCount, err := ParseServerCount(resp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,5 +123,5 @@ func TestRetryFetch(t *testing.T) {
 	}
 
 	wg.Wait()
-	t.Logf("Server Infos retrieved: %s/%d(server count: %d)", cnt.String(), len(serverList), serverCount)
+	t.Logf("Server Infos retrieved: %s/%d", cnt.String(), len(serverList))
 }

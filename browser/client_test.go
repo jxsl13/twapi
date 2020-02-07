@@ -90,7 +90,7 @@ func TestRetryFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err = RetryFetch("serverlist", token, conn, 10*time.Second)
+	resp, err = RetryFetch("serverlist", token, conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,18 @@ func TestRetryFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err = RetryFetch("servercount", token, conn, 10*time.Second)
+	// fetch serer count
+	resp, err := RetryFetchToken(conn, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	token, err := ParseToken(resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err = RetryFetch("servercount", token, conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}

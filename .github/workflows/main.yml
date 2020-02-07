@@ -17,6 +17,6 @@ jobs:
     - name: Test
       run: go test ./...
     - name: Code Coverage
-      run: test ./... -race -coverprofile=coverage.txt -covermode=atomic
+      run: go test ./... -race -coverprofile=coverage.txt -covermode=atomic
     - name: After Success
       run: bash <(curl -s https://codecov.io/bash)

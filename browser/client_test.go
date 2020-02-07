@@ -101,12 +101,12 @@ func TestRetryFetch(t *testing.T) {
 	}
 
 	// fetch serer count
-	resp, err := RetryFetchToken(conn, 5*time.Second)
+	resp, err = RetryFetchToken(conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	token, err := ParseToken(resp)
+	token, err = ParseToken(resp)
 	if err != nil {
 		t.Fatal(err)
 	}

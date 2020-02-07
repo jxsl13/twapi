@@ -10,7 +10,7 @@ import (
 )
 
 // NewTokenRequestPacket generates a new token request packet that can be
-// used to request fo a new server token
+// used to request for a new server token
 func NewTokenRequestPacket() TokenRequestPacket {
 	seedSource := rand.NewSource(time.Now().UnixNano())
 	randomNumberGenerator := rand.New(seedSource)

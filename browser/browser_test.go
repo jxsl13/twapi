@@ -309,6 +309,9 @@ func TestRequest(t *testing.T) {
 		bufSlice = bufSlice[:1500]
 		// wait for response or time out
 		read, err = connection.Read(bufSlice)
+		if err != nil {
+			t.Fatal(err)
+		}
 		bufSlice = bufSlice[:read]
 
 		token, err = ParseToken(bufSlice)
@@ -323,11 +326,18 @@ func TestRequest(t *testing.T) {
 
 		// timeout after 5 secods
 		// should not return an error
-		connection.SetDeadline(time.Now().Add(5 * time.Second))
+		err = connection.SetDeadline(time.Now().Add(5 * time.Second))
+
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		bufSlice = bufSlice[:1500]
 		// wait for response or time out
 		read, err = connection.Read(bufSlice)
+		if err != nil {
+			t.Fatal(err)
+		}
 		bufSlice = bufSlice[:read]
 
 		info, err := ParseServerInfo(bufSlice, addr)

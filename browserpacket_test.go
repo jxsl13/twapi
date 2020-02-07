@@ -74,7 +74,7 @@ func TestTokenPacketAndServerList(t *testing.T) {
 		return
 	}
 
-	token, err := NewToken(response)
+	token, err := ParseToken(response)
 
 	t.Log(token.String())
 
@@ -111,7 +111,7 @@ func TestTokenPacketAndServerList(t *testing.T) {
 		return
 	}
 
-	serverList, err := NewServerList(response)
+	serverList, err := ParseServerList(response)
 	if err != nil {
 		t.Error(err)
 		return
@@ -125,7 +125,7 @@ func TestServerCount(t *testing.T) {
 
 	_, response := sendBytesToMasterServerAndAwait(reqToken, t)
 
-	token, err := NewToken(response)
+	token, err := ParseToken(response)
 
 	if err != nil {
 		t.Error(err)
@@ -139,7 +139,7 @@ func TestServerCount(t *testing.T) {
 	}
 
 	_, response = sendBytesToMasterServerAndAwait(srvCountReq, t)
-	count, err := NewServerCount(response)
+	count, err := ParseServerCount(response)
 	if err != nil {
 		t.Error(err)
 		return
@@ -164,7 +164,7 @@ func TestServerInfo(t *testing.T) {
 
 	_, response := sendBytesToMasterServerAndAwait(reqToken, t)
 
-	token, err := NewToken(response)
+	token, err := ParseToken(response)
 
 	if err != nil {
 		t.Error(err)
@@ -179,7 +179,7 @@ func TestServerInfo(t *testing.T) {
 
 	_, response = sendBytesToMasterServerAndAwait(srvListReq, t)
 
-	serverList, err := NewServerList(response)
+	serverList, err := ParseServerList(response)
 	if err != nil {
 		t.Error(err)
 		return
@@ -188,7 +188,7 @@ func TestServerInfo(t *testing.T) {
 	reqToken = NewTokenRequestPacket()
 
 	_, response = sendBytesToServer(reqToken, serverList[0], t)
-	token, err = NewToken(response)
+	token, err = ParseToken(response)
 	if err != nil {
 		t.Error(err)
 		return
@@ -201,7 +201,7 @@ func TestServerInfo(t *testing.T) {
 	}
 
 	addr, response := sendBytesToServer(srvInfoReq, serverList[0], t)
-	serverInfo, err := NewServerInfo(response, addr)
+	serverInfo, err := ParseServerInfo(response, addr)
 	if err != nil {
 		t.Error(err)
 		return

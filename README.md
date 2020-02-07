@@ -55,12 +55,12 @@ func main() {
 	fmt.Printf("read: %d bytes from %s\n", written, conn.RemoteAddr().String())
 
 	// create toke from response
-	token, err := twapi.NewToken(bufSlice)
+	token, err := twapi.ParseToken(bufSlice)
 	// reset slice
 	bufSlice = bufSlice[:1500]
 
 	// create a new request from token
-	serverListReq, err := twapi.NewServerListRequestPacket(token)
+	serverListReq, err := twapi.ParseServerListRequestPacket(token)
 
 	// Send server list request
 	written, err = conn.Write(serverListReq)

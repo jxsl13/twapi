@@ -174,7 +174,7 @@ func NewTokenRequestPacket() TokenRequestPacket {
 	return TokenRequestPacket(header)
 }
 
-// NewToken creates a new token from a response message that was sent by a server that was
+// ParseToken creates a new token from a response message that was sent by a server that was
 // requested with a TokenRequestPacket
 // Returns:
 //		data without the token header
@@ -182,7 +182,7 @@ func NewTokenRequestPacket() TokenRequestPacket {
 // 		an ErrInvalidResponseMessage if the serverResponse is too short.
 // Info: If the serverResponse is incorrect, but has the correct length, the resulting token might contain invalid data.
 // This function should be immediatly called after receiving the Token Response message from the server.
-func NewToken(serverResponse []byte) (Token, error) {
+func ParseToken(serverResponse []byte) (Token, error) {
 	tokenClient, tokenServer, err := unpackTokenResponse(serverResponse)
 	if err != nil {
 		return Token{}, err
@@ -259,8 +259,8 @@ func MatchResponse(responseMessage []byte) (string, error) {
 	return "", ErrInvalidResponseMessage
 }
 
-// NewServerList parses the response server list
-func NewServerList(serverResponse []byte) (ServerList, error) {
+// ParseServerList parses the response server list
+func ParseServerList(serverResponse []byte) (ServerList, error) {
 	if len(serverResponse) < tokenPrefixSize+len(sendServerListRaw) {
 		return nil, ErrInvalidResponseMessage
 	}
@@ -311,8 +311,8 @@ func NewServerList(serverResponse []byte) (ServerList, error) {
 
 }
 
-// NewServerCount parses the response and returns the number of currently registered servers.
-func NewServerCount(serverResponse []byte) (int, error) {
+// ParseServerCount parses the response and returns the number of currently registered servers.
+func ParseServerCount(serverResponse []byte) (int, error) {
 	if len(serverResponse) < tokenPrefixSize+len(sendServerListRaw) {
 		return 0, ErrInvalidResponseMessage
 	}
@@ -337,8 +337,8 @@ func NewServerCount(serverResponse []byte) (int, error) {
 	return count, nil
 }
 
-// NewServerInfo parses the serrver's server info response
-func NewServerInfo(serverResponse []byte, address net.Addr) (ServerInfo, error) {
+// ParseServerInfo parses the serrver's server info response
+func ParseServerInfo(serverResponse []byte, address net.Addr) (ServerInfo, error) {
 	if len(serverResponse) < tokenPrefixSize+len(sendInfoRaw) {
 		return ServerInfo{}, ErrInvalidResponseMessage
 	}

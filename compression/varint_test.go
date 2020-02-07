@@ -77,8 +77,6 @@ func TestMultiplePacks(t *testing.T) {
 	numbers := make([]int, randoNumbers)
 	sign := 0
 
-	maxAllowedValue := int64(math.Pow(2, 55)) // 2^55 is the max range of this compression format
-
 	// generate random numbers
 	for idx := range numbers {
 
@@ -88,7 +86,7 @@ func TestMultiplePacks(t *testing.T) {
 			sign = 1
 		}
 
-		value := sign * int(randomNumberGenerator.Int63n(maxAllowedValue)) // max values should be below 2^55
+		value := sign * int(randomNumberGenerator.Int31())
 		numbers[idx] = value
 		v.Pack(value)
 	}
@@ -119,7 +117,7 @@ func TestPackLong(t *testing.T) {
 	var v VarInt
 	v.Clear()
 
-	toPack := int(3.6028797e16) // 2^55
+	toPack := int(math.Pow(2.0, 31)) - 1
 	v.Pack(toPack)
 
 	value, _ := v.Unpack()
@@ -285,7 +283,7 @@ func TestVarInt_Grow(t *testing.T) {
 		capacity int
 	}{
 		{"default constructed grow < 5 ", fields{nil}, args{0}, 5},
-		{"default constructed, grow > 5", fields{nil}, args{0}, 50},
+		{"default constructed, grow > 5", fields{nil}, args{50}, 50},
 		{"grow after already containing data", fields{[]byte{1, 2, 3, 4, 5}}, args{33}, 38},
 	}
 	for _, tt := range tests {

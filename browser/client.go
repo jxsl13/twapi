@@ -41,19 +41,8 @@ func ReceiveToken(r io.Reader) (response []byte, err error) {
 	return
 }
 
-// FetchToken writes a token request payload to rw and tries to read the response from rw.
-func FetchToken(rw io.ReadWriter) (response []byte, err error) {
-	err = RequestToken(rw)
-	if err != nil {
-		return
-	}
-
-	response, err = ReceiveToken(rw)
-	return
-}
-
-// RetryFetchToken tries to fetch a token from the server for a specific duration at most. a timeout below 35 ms will be set to 35 ms
-func RetryFetchToken(rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
+// FetchToken tries to fetch a token from the server for a specific duration at most. a timeout below 35 ms will be set to 35 ms
+func FetchToken(rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
 	if timeout < minTimeout {
 		timeout = minTimeout
 	}
@@ -82,7 +71,7 @@ func RetryFetchToken(rwd ReadWriteDeadliner, timeout time.Duration) (response []
 		}
 
 		// wait for response
-		response, err = FetchToken(rwd)
+		response, err = ReceiveToken(rwd)
 		if err == nil {
 			return
 		}
@@ -152,18 +141,8 @@ func Receive(packet string, r io.Reader) (response []byte, err error) {
 	return
 }
 
-// Fetch writes a specific packet payload to rw and reads the response from rw
-func Fetch(packet string, token Token, rw io.ReadWriter) (response []byte, err error) {
-	err = Request(packet, token, rw)
-	if err != nil {
-		return
-	}
-	response, err = Receive(packet, rw)
-	return
-}
-
-// RetryFetch is the same as Fetch, but it retries fetching data for a specific time.
-func RetryFetch(packet string, token Token, rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
+// Fetch is the same as Fetch, but it retries fetching data for a specific time.
+func Fetch(packet string, token Token, rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
 	if timeout < minTimeout {
 		timeout = minTimeout
 	}

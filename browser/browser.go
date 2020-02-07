@@ -54,6 +54,9 @@ var (
 	// ErrTimeout is used in Retry functions that support a timeout parameter
 	ErrTimeout = errors.New("timeout")
 
+	// ErrInvalidWrite is returned if writing to an io.Writer failed
+	ErrInvalidWrite = errors.New("invalid write")
+
 	// ErrRequestResponseMismatch is returned by functions that request and receive data, but the received data does not match the requested data.
 	ErrRequestResponseMismatch = errors.New("request response mismatch")
 

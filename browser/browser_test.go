@@ -286,8 +286,8 @@ func TestRequest(t *testing.T) {
 
 	}
 
-	addr := serverList[0].String()
-	t.Logf("Server(%d/%d): %s\n", idx+1, len(serverList), addr)
+	gameserver := serverList[0].String()
+	t.Logf("Server(%d/%d): %s\n", 1, len(serverList), gameserver)
 
 	connection, err := net.DialUDP("udp", nil, serverList[0])
 	if err != nil {
@@ -338,7 +338,7 @@ func TestRequest(t *testing.T) {
 	}
 	bufSlice = bufSlice[:read]
 
-	info, err := ParseServerInfo(bufSlice, addr)
+	info, err := ParseServerInfo(bufSlice, gameserver)
 	if err != nil {
 		t.Fatal(err)
 	}

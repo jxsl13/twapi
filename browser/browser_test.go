@@ -251,7 +251,8 @@ func TestRequest(t *testing.T) {
 	bufSlice = bufSlice[:read]
 
 	// create toke from response
-	token, err := ParseToken(bufSlice)
+	token := Token{}
+	token, err = ParseToken(bufSlice)
 	// reset slice
 	bufSlice = bufSlice[:1500]
 
@@ -282,7 +283,7 @@ func TestRequest(t *testing.T) {
 	for idx := range serverList {
 
 		addr := serverList[idx].String()
-		t.Logf("Server(%d/%d)-: %s\n", idx+1, len(serverList), addr)
+		t.Logf("Server(%d/%d): %s\n", idx+1, len(serverList), addr)
 
 		connection, err := net.DialUDP("udp", nil, serverList[idx])
 		if err != nil {
@@ -304,7 +305,7 @@ func TestRequest(t *testing.T) {
 		read, err = connection.Read(bufSlice)
 		bufSlice = bufSlice[:read]
 
-		token, err := ParseToken(bufSlice)
+		token, err = ParseToken(bufSlice)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -323,7 +324,8 @@ func TestRequest(t *testing.T) {
 		read, err = connection.Read(bufSlice)
 		bufSlice = bufSlice[:read]
 
-		info, err := ParseServerInfo(bufSlice, addr)
+		info := ServerInfo{}
+		info, err = ParseServerInfo(bufSlice, addr)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -105,8 +105,8 @@ func (v *VarInt) Pack(value int) {
 		v.Clear()
 	}
 
-	if value < -3.6028797e16 || 3.6028797e16 < value {
-		panic("ERROR: value to Pack is out of bounds, should be within range [-2^55:2^55]]")
+	if value < -2147483648 || 2147483647 < value {
+		panic("ERROR: value to Pack is out of bounds, should be within range [-2147483648:2147483647] (32bit)")
 	}
 
 	intSize := unsafe.Sizeof(value)

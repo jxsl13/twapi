@@ -1,4 +1,4 @@
-# Teeworlds API written in Go
+# Teeworlds API written in Go![Test](https://github.com/jxsl13/twapi/workflows/Test/badge.svg)
 Currently this supports only the server browser api.
 It is possible to retrieve data from the masterservers as well as the server information from the game servers.
 

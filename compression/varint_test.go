@@ -130,45 +130,6 @@ func TestPackLong(t *testing.T) {
 
 }
 
-// func TestPackLibrary(t *testing.T) {
-// 	// same as the Varint from the golang library
-// 	toPack := int64(7.6028797e18) // 2^55
-
-// 	buf := make([]byte, 10)
-// 	binary.PutVarint(buf, toPack)
-
-// 	v := VarInt{buf}
-
-// 	value := v.Unpack()
-
-// 	t.Logf("byte needed: %d,packed: %d unpacked: %d", unsafe.Sizeof(toPack), toPack, value)
-// 	t.Logf("")
-
-// 	if value != int(toPack) {
-// 		t.Error("value mismatch")
-// 	}
-// }
-
-// func TestUnpackLibrary(t *testing.T) {
-// 	toPack := int(7.6028797e18) // 2^55
-// 	expected := int64(toPack)
-
-// 	v := VarInt{}
-// 	v.Pack(toPack)
-
-// 	buffer := bytes.NewBuffer(v.Compressed)
-// 	result, err := binary.ReadVarint(buffer)
-
-// 	if err != nil {
-// 		t.Error(err)
-// 		return
-// 	}
-
-// 	if expected != result {
-// 		t.Errorf("expected: %d received: %d", expected, result)
-// 	}
-// }
-
 func TestNewVarIntFrom(t *testing.T) {
 	type args struct {
 		bytes []byte

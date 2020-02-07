@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/bits"
 	"math/rand"
+	"reflect"
 	"testing"
 	"time"
 	"unsafe"
@@ -169,3 +170,103 @@ func TestPackLong(t *testing.T) {
 // 		t.Errorf("expected: %d received: %d", expected, result)
 // 	}
 // }
+
+func TestNewVarIntFrom(t *testing.T) {
+	type args struct {
+		bytes []byte
+	}
+	tests := []struct {
+		name string
+		args args
+		want VarInt
+	}{
+		{"one byte", args{[]byte{64}}, VarInt{[]byte{64}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NewVarIntFrom(tt.args.bytes); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("NewVarIntFrom() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestVarInt_Size(t *testing.T) {
+	type fields struct {
+		Compressed []byte
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   int
+	}{
+		{"default constructed", fields{nil}, 0},
+		{"default constructed", fields{[]byte{0b11000001, 0b01111111}}, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := &VarInt{
+				Compressed: tt.fields.Compressed,
+			}
+			if got := v.Size(); got != tt.want {
+				t.Errorf("VarInt.Size() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestVarInt_Data(t *testing.T) {
+	type fields struct {
+		Compressed []byte
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   []byte
+	}{
+		{"default constructed", fields{nil}, []byte{}},
+		{"default constructed", fields{[]byte{64}}, []byte{64}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := &VarInt{
+				Compressed: tt.fields.Compressed,
+			}
+			if got := v.Data(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("VarInt.Data() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestVarInt_Unpack(t *testing.T) {
+	type fields struct {
+		Compressed []byte
+	}
+	tests := []struct {
+		name      string
+		fields    fields
+		wantValue int
+		wantErr   bool
+	}{
+		{"default constructed", fields{nil}, 0, true},
+		{"32", fields{[]byte{0b00100000}}, 32, false},
+		{"5 byte, 604508192", fields{[]byte{0b10100000, 0b11000000, 0b11000000, 0b11000000, 0b00000100}}, 604508192, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := &VarInt{
+				Compressed: tt.fields.Compressed,
+			}
+			gotValue, err := v.Unpack()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("VarInt.Unpack() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotValue != tt.wantValue {
+				t.Errorf("VarInt.Unpack() = %v, want %v", gotValue, tt.wantValue)
+			}
+		})
+	}
+
+}

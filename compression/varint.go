@@ -65,7 +65,8 @@ func (v *VarInt) Unpack() (value int, err error) {
 	}
 
 	if len(v.Compressed) == 0 {
-		panic("Error: VarInt is empty, please check the size before trying to Unpack")
+		err = ErrNoDataToUnpack
+		return
 	}
 
 	intSize := int(unsafe.Sizeof(value))
@@ -101,7 +102,7 @@ func (v *VarInt) Pack(value int) {
 	}
 
 	if value < -3.6028797e16 || 3.6028797e16 < value {
-		panic("ERROR: value to Pack is out of bounds, should lie within range [-2^55:2^55]]")
+		panic("ERROR: value to Pack is out of bounds, should be within range [-2^55:2^55]]")
 	}
 
 	intSize := unsafe.Sizeof(value)

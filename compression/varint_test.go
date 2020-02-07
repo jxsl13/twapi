@@ -284,7 +284,8 @@ func TestVarInt_Grow(t *testing.T) {
 		args     args
 		capacity int
 	}{
-		{"default constructed", fields{nil}, args{0}, 5},
+		{"default constructed grow < 5 ", fields{nil}, args{0}, 5},
+		{"default constructed, grow > 5", fields{nil}, args{0}, 50},
 		{"grow after already containing data", fields{[]byte{1, 2, 3, 4, 5}}, args{33}, 38},
 	}
 	for _, tt := range tests {

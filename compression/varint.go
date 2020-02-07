@@ -5,7 +5,7 @@ import (
 	"unsafe"
 )
 
-// ErrNoDataToUnpack is returned if the compressed array doe snot have sufficient data to unpack
+// ErrNoDataToUnpack is returned if the compressed array does not have sufficient data to unpack
 var ErrNoDataToUnpack = errors.New("no data")
 
 // VarInt is used to compress integers in a variable length format.

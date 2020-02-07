@@ -286,66 +286,63 @@ func TestRequest(t *testing.T) {
 
 	}
 
-	for idx := range serverList {
+	addr := serverList[0].String()
+	t.Logf("Server(%d/%d): %s\n", idx+1, len(serverList), addr)
 
-		addr := serverList[idx].String()
-		t.Logf("Server(%d/%d): %s\n", idx+1, len(serverList), addr)
-
-		connection, err := net.DialUDP("udp", nil, serverList[idx])
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer connection.Close()
-
-		err = RequestToken(connection)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// timeout after 5 secods
-		// should not return an error
-		connection.SetDeadline(time.Now().Add(5 * time.Second))
-
-		bufSlice = bufSlice[:1500]
-		// wait for response or time out
-		read, err = connection.Read(bufSlice)
-		if err != nil {
-			t.Fatal(err)
-		}
-		bufSlice = bufSlice[:read]
-
-		token, err = ParseToken(bufSlice)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		err = Request("serverinfo", token, connection)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		// timeout after 5 secods
-		// should not return an error
-		err = connection.SetDeadline(time.Now().Add(5 * time.Second))
-
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		bufSlice = bufSlice[:1500]
-		// wait for response or time out
-		read, err = connection.Read(bufSlice)
-		if err != nil {
-			t.Fatal(err)
-		}
-		bufSlice = bufSlice[:read]
-
-		info, err := ParseServerInfo(bufSlice, addr)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		t.Log(info.String())
-
+	connection, err := net.DialUDP("udp", nil, serverList[0])
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer connection.Close()
+
+	err = RequestToken(connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// timeout after 5 secods
+	// should not return an error
+	connection.SetDeadline(time.Now().Add(5 * time.Second))
+
+	bufSlice = bufSlice[:1500]
+	// wait for response or time out
+	read, err = connection.Read(bufSlice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bufSlice = bufSlice[:read]
+
+	token, err = ParseToken(bufSlice)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = Request("serverinfo", token, connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// timeout after 5 secods
+	// should not return an error
+	err = connection.SetDeadline(time.Now().Add(5 * time.Second))
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufSlice = bufSlice[:1500]
+	// wait for response or time out
+	read, err = connection.Read(bufSlice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bufSlice = bufSlice[:read]
+
+	info, err := ParseServerInfo(bufSlice, addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(info.String())
+
 }

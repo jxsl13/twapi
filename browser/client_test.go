@@ -50,9 +50,9 @@ func getServerInfo(addr *net.UDPAddr, t *testing.T, wg *sync.WaitGroup, cnt *asy
 		return
 	}
 
-	resp, err = RetryFetch("serverinfo", token, conn, 5*time.Second)
+	resp, err = RetryFetch("serverinfo", token, conn, 10*time.Second)
 	if err != nil {
-		t.Error(err)
+		t.Log(err)
 		return
 	}
 
@@ -80,7 +80,10 @@ func TestRetryFetch(t *testing.T) {
 	}
 	defer conn.Close()
 
-	resp, err := RetryFetchToken(conn, 5*time.Second)
+	var resp []byte
+	var token Token
+
+	resp, err = RetryFetchToken(conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +104,7 @@ func TestRetryFetch(t *testing.T) {
 	}
 
 	// fetch serer count
-	resp, err = RetryFetchToken(conn, 5*time.Second)
+	resp, err = RetryFetchToken(conn, 4*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +114,7 @@ func TestRetryFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err = RetryFetch("servercount", token, conn, 5*time.Second)
+	resp, err = RetryFetch("servercount", token, conn, 4*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}

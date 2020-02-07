@@ -71,7 +71,7 @@ func NewServerInfoRequestPacket(t Token) (ServerInfoRequestPacket, error) {
 //		A token that is used for every continuous request, until the token expires and needs to be renewed
 // 		an ErrInvalidResponseMessage if the serverResponse is too short.
 // Info: If the serverResponse is incorrect, but has the correct length, the resulting token might contain invalid data.
-// This function should be immediatly called after receiving the Token Response message from the server.
+// This function should be immediately called after receiving the Token Response message from the server.
 func ParseToken(serverResponse []byte) (Token, error) {
 	tokenClient, tokenServer, err := unpackTokenResponse(serverResponse)
 	if err != nil {

@@ -251,8 +251,10 @@ func TestRequest(t *testing.T) {
 	bufSlice = bufSlice[:read]
 
 	// create toke from response
-	var token Token
-	token, err = ParseToken(bufSlice)
+	token, err := ParseToken(bufSlice)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// reset slice
 	bufSlice = bufSlice[:1500]
 
@@ -267,6 +269,10 @@ func TestRequest(t *testing.T) {
 
 	// wait for response or time out
 	read, err = conn.Read(bufSlice)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	bufSlice = bufSlice[:read]
 	t.Logf("read: %d bytes from %s\n", read, conn.RemoteAddr().String())
 
@@ -324,8 +330,7 @@ func TestRequest(t *testing.T) {
 		read, err = connection.Read(bufSlice)
 		bufSlice = bufSlice[:read]
 
-		var info ServerInfo
-		info, err = ParseServerInfo(bufSlice, addr)
+		info, err := ParseServerInfo(bufSlice, addr)
 		if err != nil {
 			t.Fatal(err)
 		}

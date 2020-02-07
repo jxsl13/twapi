@@ -2,8 +2,88 @@
 Currently this supports only the server browser api.
 It is possible to retrieve data from the masterservers as well as the server information from the game servers.
 
+### Example - Slightly Higher Level Abstraction - Retrieve Serverlist
+```Go
+package main
 
-### Example - Retrieve Serverlist
+import (
+	"fmt"
+	"net"
+	"time"
+
+	"github.com/jxsl13/twapi/browser"
+)
+
+func main() {
+	addr, err := net.ResolveUDPAddr("udp", "master1.teeworlds.com:8283")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	conn, err := net.DialUDP("udp", nil, addr)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer conn.Close()
+
+	err = browser.RequestToken(conn)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	buffer := [1500]byte{}
+	bufSlice := buffer[:]
+
+	read, err := conn.Read(bufSlice)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	bufSlice = bufSlice[:read]
+	fmt.Printf("read: %d bytes from %s\n", read, conn.RemoteAddr().String())
+
+	// create toke from response
+	token, err := browser.ParseToken(bufSlice)
+	// reset slice
+	bufSlice = bufSlice[:1500]
+
+	err = browser.Request("serverlist", token, conn)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// timeout after 5 secods
+	// should not return an error
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
+
+	// wait for response or time out
+	read, err = conn.Read(bufSlice)
+	bufSlice = bufSlice[:read]
+	fmt.Printf("read: %d bytes from %s\n", read, conn.RemoteAddr().String())
+
+	serverList, err := browser.ParseServerList(bufSlice)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	for _, server := range serverList {
+		fmt.Printf("Server: %s\n", server.String())
+	}
+
+}
+
+```
+
+
+### Example - Low Level - Retrieve Serverlist
 ```Go
 package main
 
@@ -52,7 +132,7 @@ func main() {
 		return
 	}
 	bufSlice = bufSlice[:read]
-	fmt.Printf("read: %d bytes from %s\n", written, conn.RemoteAddr().String())
+	fmt.Printf("read: %d bytes from %s\n", read, conn.RemoteAddr().String())
 
 	// create toke from response
 	token, err := browser.ParseToken(bufSlice)
@@ -77,7 +157,7 @@ func main() {
 	// wait for response or time out
 	read, err = conn.Read(bufSlice)
 	bufSlice = bufSlice[:read]
-	fmt.Printf("read: %d bytes from %s\n", written, conn.RemoteAddr().String())
+	fmt.Printf("read: %d bytes from %s\n", read, conn.RemoteAddr().String())
 
 	serverList, err := browser.ParseServerList(bufSlice)
 	if err != nil {

@@ -108,7 +108,7 @@ func ParseServerList(serverResponse []byte) (ServerList, error) {
 		and if it does not match, the IP is parsed as IPv6
 	*/
 	numServers := len(data) / 18 // 18 bytes, 16 for IPv4/IPv6 and 2 bytes for the port
-	serverList := make([]net.UDPAddr, 0, numServers)
+	serverList := make([]*net.UDPAddr, 0, numServers)
 
 	// fixed size array
 	ipv4Prefix := [12]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF}
@@ -125,7 +125,7 @@ func ParseServerList(serverResponse []byte) (ServerList, error) {
 			ip = data[idx*18 : idx*18+16]
 		}
 
-		serverList = append(serverList, net.UDPAddr{
+		serverList = append(serverList, &net.UDPAddr{
 			IP:   ip,
 			Port: (int(data[idx*18+16]) << 8) + int(data[idx*18+17]),
 		})
@@ -162,7 +162,7 @@ func ParseServerCount(serverResponse []byte) (int, error) {
 }
 
 // ParseServerInfo parses the serrver's server info response
-func ParseServerInfo(serverResponse []byte, address net.Addr) (info ServerInfo, err error) {
+func ParseServerInfo(serverResponse []byte, address string) (info ServerInfo, err error) {
 	if len(serverResponse) < tokenPrefixSize+len(sendInfoRaw) {
 		err = ErrInvalidResponseMessage
 		return
@@ -183,7 +183,7 @@ func ParseServerInfo(serverResponse []byte, address net.Addr) (info ServerInfo, 
 		return
 	}
 
-	info.Address = address.String()
+	info.Address = address
 	info.Version = string(slots[0])
 	info.Name = string(slots[1])
 	info.Hostname = string(slots[2])

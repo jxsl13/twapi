@@ -72,7 +72,7 @@ type ServerCountRequestPacket []byte
 type ServerInfoRequestPacket []byte
 
 // ServerList is the result type of a serer list request
-type ServerList []net.UDPAddr
+type ServerList []*net.UDPAddr
 
 // ServerInfo contains the server's general information
 type ServerInfo struct {

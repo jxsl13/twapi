@@ -16,3 +16,7 @@ jobs:
       uses: actions/checkout@v2
     - name: Test
       run: go test ./...
+    - name: Code Coverage
+      run: test ./... -race -coverprofile=coverage.txt -covermode=atomic
+    - name: After Success
+      run: bash <(curl -s https://codecov.io/bash)

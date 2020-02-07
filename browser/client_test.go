@@ -102,17 +102,6 @@ func TestRetryFetch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// fetch serer count
-	resp, err = RetryFetchToken(conn, 5*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	token, err = ParseToken(resp)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	var cnt asyncCounter
 	wg := sync.WaitGroup{}
 	wg.Add(len(serverList))

@@ -60,7 +60,7 @@ func main() {
 	bufSlice = bufSlice[:1500]
 
 	// create a new request from token
-	serverListReq, err := browser.ParseServerListRequestPacket(token)
+	serverListReq, err := browser.NewServerListRequestPacket(token)
 
 	// Send server list request
 	written, err = conn.Write(serverListReq)
@@ -79,7 +79,7 @@ func main() {
 	bufSlice = bufSlice[:read]
 	fmt.Printf("read: %d bytes from %s\n", written, conn.RemoteAddr().String())
 
-	serverList, err := browser.NewServerList(bufSlice)
+	serverList, err := browser.ParseServerList(bufSlice)
 	if err != nil {
 		fmt.Println(err)
 		return

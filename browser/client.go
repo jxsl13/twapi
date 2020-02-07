@@ -2,14 +2,8 @@ package browser
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"time"
-)
-
-var (
-	// ErrInvalidWrite is returned if writing to an io.Writer failed
-	ErrInvalidWrite = errors.New("invalid write")
 )
 
 // RequestToken writes the payload to w

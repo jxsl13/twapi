@@ -116,7 +116,7 @@ func TestFetchWithTokenServerListAndInfo(t *testing.T) {
 }
 
 func TestFetchWithTokenServerCount(t *testing.T) {
-	addr, err := net.ResolveUDPAddr("udp", "master2.teeworlds.com:8283")
+	addr, err := net.ResolveUDPAddr("udp", "master4.teeworlds.com:8283")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestFetchWithTokenServerCount(t *testing.T) {
 	defer conn.Close()
 
 	var resp []byte
-	resp, err = FetchToken(conn, 10*time.Second)
+	resp, err = FetchToken(conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestFetchWithTokenServerCount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err = FetchWithToken("servercount", token, conn, 10*time.Second)
+	resp, err = FetchWithToken("servercount", token, conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}

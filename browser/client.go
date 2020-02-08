@@ -3,6 +3,8 @@ package browser
 import (
 	"bytes"
 	"io"
+	"net"
+	"sync"
 	"time"
 )
 
@@ -135,8 +137,8 @@ func Receive(packet string, r io.Reader) (response []byte, err error) {
 	return
 }
 
-// Fetch is the same as Fetch, but it retries fetching data for a specific time.
-func Fetch(packet string, token Token, rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
+// FetchWithToken is the same as Fetch, but it retries fetching data for a specific time.
+func FetchWithToken(packet string, token Token, rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
 	if timeout < minTimeout {
 		timeout = minTimeout
 	}
@@ -203,4 +205,112 @@ func MatchResponse(responseMessage []byte) (string, error) {
 		return "serverinfo", nil
 	}
 	return "", ErrInvalidResponseMessage
+}
+
+// Fetch sends the token, retrieves the response and sends the follow up packet request in order to receive the data response.
+func Fetch(packet string, rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
+	begin := time.Now()
+	resp, err := FetchToken(rwd, timeout)
+	if err != nil {
+		return
+	}
+	token, err := ParseToken(resp)
+	if err != nil {
+		return
+	}
+	timeLeft := timeout - time.Now().Sub(begin)
+	resp, err = FetchWithToken(packet, token, rwd, timeLeft)
+	if err != nil {
+		return
+	}
+
+	response = resp
+	return
+}
+
+// ServerInfos is a wrapper for ServerInfosWithTimeouts with prefedined parameters that have been deemed to work
+// with a rather low packet loss, but still being rather small.
+func ServerInfos() (infos []ServerInfo) {
+	return ServerInfosWithTimeouts(TimeoutMasterServers, TimeoutServers)
+}
+
+// ServerInfosWithTimeouts retrieves the full serverlist with all of the server's infos from the masterservers as well as the individual servers
+// it is possible to set the masterserver and the per server timeouts manually.
+func ServerInfosWithTimeouts(timeoutMasterServer, timeoutServer time.Duration) (infos []ServerInfo) {
+	cm := NewConcurrentMap(512)
+
+	var wg sync.WaitGroup
+	wg.Add(len(masterServerAddresses))
+
+	for _, ms := range masterServerAddresses {
+		ms := ms
+		go fetchServersFromMasterServerAddress(ms, timeoutMasterServer, timeoutServer, &cm, &wg)
+	}
+
+	wg.Wait()
+
+	infos = cm.Values()
+	return
+}
+
+func fetchServersFromMasterServerAddress(ms *net.UDPAddr, timeoutMasterServer, timeoutServer time.Duration, cm *ConcurrentMap, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	conn, err := net.DialUDP("udp", nil, ms)
+	if err != nil {
+		Logger.Printf("Masterserver: %s : %v", ms.String(), err)
+		return
+	}
+	defer conn.Close()
+	conn.SetWriteBuffer(maxBufferSize * maxChunks)
+
+	resp, err := Fetch("serverlist", conn, timeoutMasterServer)
+	if err != nil {
+		Logger.Printf("Masterserver: %s : %v", ms.String(), err)
+		return
+	}
+
+	servers, err := ParseServerList(resp)
+	if err != nil {
+		Logger.Printf("Masterserver: %s : %v", ms.String(), err)
+		return
+	}
+
+	var infoWaiter sync.WaitGroup
+
+	infoWaiter.Add(len(servers))
+	for _, s := range servers {
+		s := s
+		go fetchServerInfoFromServerAddress(s, timeoutServer, cm, &infoWaiter)
+	}
+	infoWaiter.Wait()
+}
+
+func fetchServerInfoFromServerAddress(srv *net.UDPAddr, timeout time.Duration, cm *ConcurrentMap, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	conn, err := net.DialUDP("udp", nil, srv)
+	if err != nil {
+		Logger.Printf("Server: %s : %v", srv.String(), err)
+		return
+	}
+	defer conn.Close()
+
+	// increase buffers for writing and reading
+	conn.SetReadBuffer(maxBufferSize)
+	conn.SetWriteBuffer(int(maxBufferSize * timeout.Seconds()))
+
+	resp, err := Fetch("serverinfo", conn, timeout)
+	if err != nil {
+		Logger.Printf("Server: %s : %v", srv.String(), err)
+		return
+	}
+
+	info, err := ParseServerInfo(resp, srv.String())
+	if err != nil {
+		Logger.Printf("Server: %s : %v", srv.String(), err)
+		return
+	}
+
+	cm.Add(info, 0)
 }

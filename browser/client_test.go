@@ -50,7 +50,7 @@ func getServerInfo(addr *net.UDPAddr, t *testing.T, wg *sync.WaitGroup, cnt *asy
 		return
 	}
 
-	resp, err = Fetch("serverinfo", token, conn, 10*time.Second)
+	resp, err = FetchWithToken("serverinfo", token, conn, 10*time.Second)
 	if err != nil {
 		t.Log(err)
 		return
@@ -67,7 +67,7 @@ func getServerInfo(addr *net.UDPAddr, t *testing.T, wg *sync.WaitGroup, cnt *asy
 
 }
 
-func TestFetchServerListAndInfo(t *testing.T) {
+func TestFetchWithTokenServerListAndInfo(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", "master1.teeworlds.com:8283")
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +92,7 @@ func TestFetchServerListAndInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err = Fetch("serverlist", token, conn, 5*time.Second)
+	resp, err = FetchWithToken("serverlist", token, conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestFetchServerListAndInfo(t *testing.T) {
 	t.Logf("Server Infos retrieved: %s/%d", cnt.String(), len(serverList))
 }
 
-func TestFetchServerCount(t *testing.T) {
+func TestFetchWithTokenServerCount(t *testing.T) {
 	addr, err := net.ResolveUDPAddr("udp", "master2.teeworlds.com:8283")
 	if err != nil {
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func TestFetchServerCount(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err = Fetch("servercount", token, conn, 5*time.Second)
+	resp, err = FetchWithToken("servercount", token, conn, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,4 +150,13 @@ func TestFetchServerCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("Servers fetched: %d", serverCount)
+}
+
+func TestServerInfos(t *testing.T) {
+
+	infos := ServerInfos()
+
+	if len(infos) == 0 {
+		t.Fatal("expected server list")
+	}
 }

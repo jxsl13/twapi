@@ -45,10 +45,10 @@ var (
 	Logger = log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile)
 
 	// TimeoutMasterServers is used by ServerInfos as a value that drops few packets
-	TimeoutMasterServers = 4 * time.Second
+	TimeoutMasterServers = 5 * time.Second
 
 	// TimeoutServers is also used by ServerInfos as a alue that drops few packets
-	TimeoutServers = 12 * time.Second
+	TimeoutServers = TokenExpirationDuration
 
 	// ErrTokenExpired is returned when a request packet is being constructed with an expired token
 	ErrTokenExpired = errors.New("token expired")

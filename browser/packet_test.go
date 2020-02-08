@@ -136,3 +136,29 @@ func TestParseServerInfo(t *testing.T) {
 		})
 	}
 }
+
+func TestParseServerList(t *testing.T) {
+	type args struct {
+		serverResponse []byte
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    ServerList
+		wantErr bool
+	}{
+		{"invalid header", args{[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0}}, nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseServerList(tt.args.serverResponse)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseServerList() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ParseServerList() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

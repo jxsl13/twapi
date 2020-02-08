@@ -160,3 +160,35 @@ func TestServerInfos(t *testing.T) {
 		t.Fatal("expected server list")
 	}
 }
+
+func BenchmarkServerInfos(b *testing.B) {
+	ServerInfos()
+
+}
+
+func TestMatchResponse(t *testing.T) {
+	type args struct {
+		responseMessage []byte
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{"invalid string", args{[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9}}, "", true},
+		{"too short payload", args{[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0}}, "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := MatchResponse(tt.args.responseMessage)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("MatchResponse() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("MatchResponse() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -2,11 +2,13 @@ package browser
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
-	"strings"
+	"os"
 	"time"
 )
 
@@ -30,12 +32,24 @@ const (
 	minPrefixLength = tokenResponseSize
 	maxPrefixLength = tokenPrefixSize + maxHeaderLength
 
-	maxBufferSize = 1500
+	maxBufferSize             = 1500
+	maxChunks                 = 16
+	maxServersPerMasterServer = 75
 
 	minTimeout = 35 * time.Millisecond
 )
 
 var (
+	// Logger creates the logging output. The user may define an own logger, like a file or other.
+	// the default value is the same as the standard logger from the "log" package
+	Logger = log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile)
+
+	// TimeoutMasterServers is used by ServerInfos as a value that drops few packets
+	TimeoutMasterServers = 4 * time.Second
+
+	// TimeoutServers is also used by ServerInfos as a alue that drops few packets
+	TimeoutServers = 12 * time.Second
+
 	// ErrTokenExpired is returned when a request packet is being constructed with an expired token
 	ErrTokenExpired = errors.New("token expired")
 
@@ -71,7 +85,28 @@ var (
 	requestInfoRaw        = []byte(requestInfo)
 	sendInfoRaw           = []byte(sendInfo)
 	delimiter             = []byte("\x00")
+
+	masterServerHostnameAddresses = []string{"master1.teeworlds.com:8283", "master2.teeworlds.com:8283", "master3.teeworlds.com:8283", "master4.teeworlds.com:8283"}
+	masterServerAddresses         = initServerAddresses()
 )
+
+func initServerAddresses() (result []*net.UDPAddr) {
+	result = make([]*net.UDPAddr, 0, len(masterServerHostnameAddresses))
+
+	for _, ms := range masterServerHostnameAddresses {
+		srv, err := net.ResolveUDPAddr("udp", ms)
+		if err != nil {
+			Logger.Printf("Failed to resolve: %s\n", ms)
+		} else {
+			Logger.Printf("Resolved masterserver: %s -> %s\n", ms, srv.String())
+			result = append(result, srv)
+		}
+	}
+	if len(result) == 0 {
+		Logger.Fatalln("Could not resolve any masterservers.... terminating.")
+	}
+	return
+}
 
 // ReadWriteDeadliner narrows the used uparations of the passed type.
 // in order to have a wider range of types that can satisfy this interface.

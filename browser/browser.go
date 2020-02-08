@@ -132,20 +132,19 @@ type ServerList []*net.UDPAddr
 
 // ServerInfo contains the server's general information
 type ServerInfo struct {
-	Address     string
-	Version     string
-	Name        string
-	Hostname    string
-	Map         string
-	GameType    string
-	ServerFlags int
-	SkillLevel  int
-	NumPlayers  int
-	MaxPlayers  int
-	NumClients  int
-	MaxClients  int
-	Players     []PlayerInfo
-	Date        time.Time
+	Address     string       `json:"address"`
+	Version     string       `json:"version"`
+	Name        string       `json:"name"`
+	Hostname    string       `json:"hostname,omitempty"`
+	Map         string       `json:"map"`
+	GameType    string       `json:"gametype"`
+	ServerFlags int          `json:"server_flags"`
+	SkillLevel  int          `json:"skill_level"`
+	NumPlayers  int          `json:"num_players"`
+	MaxPlayers  int          `json:"max_players"`
+	NumClients  int          `json:"num_clients"`
+	MaxClients  int          `json:"max_clients"`
+	Players     []PlayerInfo `json:"players"`
 }
 
 // Valid returns true is the struct contains valid data
@@ -154,41 +153,22 @@ func (s *ServerInfo) Valid() bool {
 }
 
 func (s *ServerInfo) String() string {
-	base := fmt.Sprintf("\nHostname: %10s\nAddress: %20s\nVersion: '%10s'\nName: '%s'\nGameType: %s\nMap: %s\nServerFlags: %b\nSkilllevel: %d\n%d/%d Players \n%d/%d Clients\nDate: %s\n",
-		s.Hostname,
-		s.Address,
-		s.Version,
-		s.Name,
-		s.GameType,
-		s.Map,
-		s.ServerFlags,
-		s.SkillLevel,
-		s.NumPlayers,
-		s.MaxPlayers,
-		s.NumClients,
-		s.MaxClients,
-		s.Date.Local().String())
-	sb := strings.Builder{}
-	sb.Grow(256 + s.NumClients*128)
-	sb.WriteString(base)
-
-	for _, p := range s.Players {
-		sb.WriteString(p.String())
-	}
-	return sb.String()
+	b, _ := json.Marshal(s)
+	return string(b)
 }
 
 // PlayerInfo contains a players externally visible information
 type PlayerInfo struct {
-	Name    string
-	Clan    string
-	Type    int
-	Country int
-	Score   int
+	Name    string `json:"name"`
+	Clan    string `json:"clan"`
+	Type    int    `json:"type"`
+	Country int    `json:"country"`
+	Score   int    `json:"score"`
 }
 
 func (p *PlayerInfo) String() string {
-	return fmt.Sprintf("Name=%27s Clan=%13s Type=%1d Country=%3d Score=%6d\n", p.Name, p.Clan, p.Type, p.Country, p.Score)
+	b, _ := json.Marshal(p)
+	return string(b)
 }
 
 // Token is used to request information from either master of game servers.

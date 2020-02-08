@@ -4,6 +4,24 @@
 Currently this supports only the server browser api.
 It is possible to retrieve data from the masterservers as well as the server information from the game servers.
 
+### Example - High Level Abstraction(Open for optimizing suggestions)
+```Go
+package main
+
+import (
+	"fmt"
+	"github.com/jxsl13/twapi/browser"
+)
+
+func main() {
+	infos := browser.ServerInfos()
+	for _, info := range infos {
+		fmt.Println(info.String())
+	}
+}
+```
+
+
 ### Example - Slightly Higher Level Abstraction - Retrieve Serverlist
 ```Go
 package main

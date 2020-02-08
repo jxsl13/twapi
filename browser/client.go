@@ -46,7 +46,7 @@ func FetchToken(rwd ReadWriteDeadliner, timeout time.Duration) (response []byte,
 	begin := time.Now()
 	timeLeft := timeout
 	currentTimeout := minTimeout
-	writeBurst := 1
+	writeBurst := 1.0
 
 	for {
 		timeLeft = timeout - time.Now().Sub(begin)
@@ -59,7 +59,7 @@ func FetchToken(rwd ReadWriteDeadliner, timeout time.Duration) (response []byte,
 		}
 
 		// send multiple requests
-		for i := 0; i < writeBurst; i++ {
+		for i := 0.0; i < writeBurst; i += 1.0 {
 			err = RequestToken(rwd)
 			if err != nil {
 				return
@@ -79,7 +79,7 @@ func FetchToken(rwd ReadWriteDeadliner, timeout time.Duration) (response []byte,
 		} else {
 			currentTimeout *= 2
 		}
-		writeBurst *= 2
+		writeBurst *= 1.2
 	}
 }
 
@@ -195,7 +195,7 @@ func MatchResponse(responseMessage []byte) (string, error) {
 		return "", ErrInvalidHeaderLength
 	}
 
-	if len(responseMessage) == 12 {
+	if len(responseMessage) == tokenResponseSize {
 		return "token", nil
 	} else if bytes.Equal(sendServerListRaw, responseMessage[tokenPrefixSize:tokenPrefixSize+len(sendServerListRaw)]) {
 		return "serverlist", nil

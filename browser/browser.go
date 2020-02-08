@@ -42,7 +42,7 @@ const (
 var (
 	// Logger creates the logging output. The user may define an own logger, like a file or other.
 	// the default value is the same as the standard logger from the "log" package
-	Logger = log.New(os.Stderr, "", log.LstdFlags|log.Lshortfile)
+	Logger = log.New(os.Stderr, "", log.LstdFlags)
 
 	// TimeoutMasterServers is used by ServerInfos as a value that drops few packets
 	TimeoutMasterServers = 5 * time.Second

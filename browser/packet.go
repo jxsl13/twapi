@@ -9,10 +9,25 @@ import (
 	"github.com/jxsl13/twapi/compression"
 )
 
+var (
+	lastSourceRenewal = time.Now()
+	seedSource        = rand.NewSource(lastSourceRenewal.UnixNano())
+)
+
+func renewSource(renewalDelay time.Duration) {
+	now := time.Now()
+
+	if lastSourceRenewal.Add(renewalDelay).After(now) {
+		lastSourceRenewal = now
+		seedSource = rand.NewSource(lastSourceRenewal.UnixNano())
+	}
+
+}
+
 // NewTokenRequestPacket generates a new token request packet that can be
 // used to request for a new server token
 func NewTokenRequestPacket() TokenRequestPacket {
-	seedSource := rand.NewSource(time.Now().UnixNano())
+	renewSource(TokenExpirationDuration) // renew source every 16 seconds if
 	randomNumberGenerator := rand.New(seedSource)
 
 	clientToken := int(randomNumberGenerator.Int31())

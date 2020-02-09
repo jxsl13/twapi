@@ -5,8 +5,13 @@ import (
 	"unsafe"
 )
 
-// ErrNoDataToUnpack is returned if the compressed array does not have sufficient data to unpack
-var ErrNoDataToUnpack = errors.New("no data")
+var (
+	// ErrNoDataToUnpack is returned if the compressed array does not have sufficient data to unpack
+	ErrNoDataToUnpack = errors.New("no data")
+
+	// it is possible to unpack
+	maxBytesInVarInt = 5
+)
 
 // VarInt is used to compress integers in a variable length format.
 // Format: ESDDDDDD EDDDDDDD EDD... Extended, Data, Sign
@@ -74,8 +79,6 @@ func (v *VarInt) Unpack() (value int, err error) {
 		return
 	}
 
-	intSize := int(unsafe.Sizeof(value))
-
 	index := 0
 	data := v.Compressed[:]
 
@@ -84,7 +87,7 @@ func (v *VarInt) Unpack() (value int, err error) {
 	value = int(data[index] & 0b00111111)
 
 	// handle 2nd - nth byte
-	for i := 0; i < intSize-1; i++ {
+	for i := 0; i < maxBytesInVarInt-1; i++ {
 		if data[index] < 0b10000000 {
 			break
 		}

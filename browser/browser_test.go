@@ -64,6 +64,18 @@ func TestServerInfo_Equal(t *testing.T) {
 		Players:    []PlayerInfo{{Name: "player1"}, {Name: "player2", Clan: "clan2"}},
 	}
 
+	info2 := ServerInfo{
+		Address:    address,
+		Version:    "0.7.4",
+		Name:       "Simply zCatch",
+		MaxClients: 64,
+		Players:    []PlayerInfo{{Name: "player1"}, {Name: "player3", Clan: "clan2"}},
+	}
+
+	if info.Equal(info2) {
+		t.Fatal("both info anf info2 are equal, but should not be.")
+	}
+
 	serverData, _ := info.MarshalBinary()
 	data := make([]byte, tokenPrefixSize+len(sendInfoRaw), tokenPrefixSize+len(sendInfoRaw)+len(serverData))
 

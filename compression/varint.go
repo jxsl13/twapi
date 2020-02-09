@@ -31,7 +31,8 @@ func (v *VarInt) Size() int {
 	return len(v.Compressed)
 }
 
-// Data returns the Compressed data slice.
+// Bytes returns the unread part of the underlying
+// byte slice which has not been unpacked yet.
 func (v *VarInt) Bytes() []byte {
 	if v.Compressed == nil {
 		v.Clear()

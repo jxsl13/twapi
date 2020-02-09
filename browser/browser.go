@@ -208,12 +208,6 @@ func (s *ServerInfo) Equal(other ServerInfo) bool {
 	return equalData
 }
 
-// Valid returns true is the struct contains valid data
-func (s *ServerInfo) Valid() bool {
-	s.fix()
-	return s.Address != "" && s.Map != ""
-}
-
 func (s *ServerInfo) String() string {
 	s.fix()
 	b, _ := json.Marshal(s)

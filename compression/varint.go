@@ -47,7 +47,7 @@ func (v *VarInt) Bytes() []byte {
 
 // Clear clears the internal Compressed buffer
 func (v *VarInt) Clear() {
-	v.Compressed = make([]byte, 0, 5)
+	v.Compressed = make([]byte, 0, maxBytesInVarInt)
 }
 
 // Grow increases size of the underlying array to fit another n elements

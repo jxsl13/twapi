@@ -1,6 +1,7 @@
 package compression
 
 import (
+	"fmt"
 	"math"
 	"math/bits"
 	"math/rand"
@@ -243,9 +244,9 @@ func TestVarInt_Grow(t *testing.T) {
 		args     args
 		capacity int
 	}{
-		{"default constructed grow < 5 ", fields{nil}, args{0}, 5},
-		{"default constructed, grow > 5", fields{nil}, args{50}, 50},
-		{"grow after already containing data", fields{[]byte{1, 2, 3, 4, 5}}, args{33}, 38},
+		{fmt.Sprintf("default constructed grow < %d ", maxBytesInVarInt), fields{nil}, args{0}, maxBytesInVarInt},
+		{fmt.Sprintf("default constructed grow > %d ", maxBytesInVarInt), fields{nil}, args{maxBytesInVarInt + 1}, maxBytesInVarInt + 1},
+		{"grow after already containing data", fields{make([]byte, maxBytesInVarInt)}, args{33}, 38},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

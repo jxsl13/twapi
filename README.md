@@ -4,6 +4,11 @@
 Currently this supports only the server browser api.
 It is possible to retrieve data from the masterservers as well as the server information from the game servers.
 
+In order to download the dependency, execute: 
+```
+go get github.com/jxsl13/twapi/
+```
+
 ### Example - High Level Abstraction(Open for optimizing suggestions)
 ```Go
 package main

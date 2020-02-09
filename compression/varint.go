@@ -9,7 +9,7 @@ var (
 	// ErrNoDataToUnpack is returned if the compressed array does not have sufficient data to unpack
 	ErrNoDataToUnpack = errors.New("no data")
 
-	// it is possible to unpack
+	// max bytes that can be received for one integer
 	maxBytesInVarInt = 5
 )
 
@@ -53,8 +53,8 @@ func (v *VarInt) Clear() {
 // Grow increases size of the underlying array to fit another n elements
 func (v *VarInt) Grow(n int) {
 	if v.Compressed == nil {
-		if n < 5 {
-			v.Compressed = make([]byte, 0, 5)
+		if n < maxBytesInVarInt {
+			v.Compressed = make([]byte, 0, maxBytesInVarInt)
 		} else {
 			v.Compressed = make([]byte, 0, n)
 		}

@@ -10,6 +10,8 @@ import (
 	"net"
 	"os"
 	"time"
+
+	"github.com/jxsl13/twapi/compression"
 )
 
 const (
@@ -183,14 +185,80 @@ type ServerInfo struct {
 	Players     []PlayerInfo `json:"players"`
 }
 
+// fix synchronizes the length of playerInfo with its struct field
+func (s *ServerInfo) fix() {
+	s.NumClients = len(s.Players)
+}
+
+// Equal compares two instances of ServerInfo and returns true if they are equal
+func (s *ServerInfo) Equal(other ServerInfo) bool {
+	s.fix()
+	other.fix()
+	equalData := s.Address == other.Address && s.Version == other.Version && s.Name == other.Name && s.Hostname == other.Hostname && s.Map == other.Map && s.GameType == other.GameType && s.ServerFlags == other.ServerFlags && s.SkillLevel == other.SkillLevel && s.NumPlayers == other.NumPlayers && s.MaxPlayers == other.MaxPlayers && s.NumClients == other.NumClients && s.MaxClients == other.MaxClients
+
+	// equal Players
+	if len(s.Players) != len(other.Players) {
+		return false
+	}
+	for idx, p := range s.Players {
+		if !p.Equal(other.Players[idx]) {
+			return false
+		}
+	}
+	return equalData
+}
+
 // Valid returns true is the struct contains valid data
 func (s *ServerInfo) Valid() bool {
+	s.fix()
 	return s.Address != "" && s.Map != ""
 }
 
 func (s *ServerInfo) String() string {
+	s.fix()
 	b, _ := json.Marshal(s)
 	return string(b)
+}
+
+// MarshalBinary returns a binary representation of the ServerInfo
+func (s *ServerInfo) MarshalBinary() (data []byte, err error) {
+	s.fix()
+	data = make([]byte, 0, maxBufferSize)
+
+	data = append(data, []byte(s.Version)...)
+	data = append(data, delimiter...)
+
+	data = append(data, []byte(s.Name)...)
+	data = append(data, delimiter...)
+
+	data = append(data, []byte(s.Hostname)...)
+	data = append(data, delimiter...)
+
+	data = append(data, []byte(s.Map)...)
+	data = append(data, delimiter...)
+
+	data = append(data, []byte(s.GameType)...)
+	data = append(data, delimiter...)
+
+	data = append(data, byte(s.ServerFlags))
+	data = append(data, byte(s.SkillLevel))
+
+	var v compression.VarInt
+
+	v.Pack(s.NumPlayers)
+	v.Pack(s.MaxPlayers)
+	v.Pack(len(s.Players)) // s.NumClients
+	v.Pack(s.MaxClients)
+
+	data = append(data, v.Bytes()...)
+	v.Clear()
+
+	for _, player := range s.Players {
+		playerData, _ := player.MarshalBinary()
+		data = append(data, playerData...)
+	}
+
+	return
 }
 
 // PlayerInfo contains a players externally visible information
@@ -202,9 +270,36 @@ type PlayerInfo struct {
 	Score   int    `json:"score"`
 }
 
+// Equal compares two instances for equality.
+func (p *PlayerInfo) Equal(other PlayerInfo) bool {
+	return p.Name == other.Name && p.Clan == other.Clan && p.Type == other.Type && p.Country == other.Country && p.Score == other.Score
+
+}
+
 func (p *PlayerInfo) String() string {
 	b, _ := json.Marshal(p)
 	return string(b)
+}
+
+// MarshalBinary returns a binary representation of the PlayerInfo
+// no delimiter is appended at the end of the byte slice
+func (p *PlayerInfo) MarshalBinary() (data []byte, err error) {
+
+	data = make([]byte, 0, 2*len(delimiter)+len(p.Name)+len(p.Clan)+3*5)
+
+	data = append(data, []byte(p.Name)...)
+	data = append(data, delimiter...)
+
+	data = append(data, []byte(p.Clan)...)
+	data = append(data, delimiter...)
+
+	var v compression.VarInt
+	v.Pack(p.Country)
+	v.Pack(p.Score)
+	v.Pack(p.Type)
+
+	data = append(data, v.Bytes()...)
+	return
 }
 
 // Token is used to request information from either master of game servers.

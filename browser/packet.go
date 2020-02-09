@@ -5,8 +5,6 @@ import (
 	"math/rand"
 	"net"
 	"time"
-
-	"github.com/jxsl13/twapi/compression"
 )
 
 // NewTokenRequestPacket generates a new token request packet that can be
@@ -164,98 +162,23 @@ func ParseServerCount(serverResponse []byte) (int, error) {
 // ParseServerInfo parses the serrver's server info response
 func ParseServerInfo(serverResponse []byte, address string) (info ServerInfo, err error) {
 	if len(serverResponse) < tokenPrefixSize+len(sendInfoRaw) {
-		err = ErrInvalidResponseMessage
-		return
+		return ServerInfo{}, ErrInvalidResponseMessage
 	}
 
 	responseHeaderRaw := serverResponse[tokenPrefixSize : tokenPrefixSize+len(sendInfoRaw)]
 
 	if !bytes.Equal(responseHeaderRaw, sendInfoRaw) {
-		err = ErrUnexpectedResponseHeader
-		return
+		return ServerInfo{}, ErrUnexpectedResponseHeader
 	}
 
 	data := serverResponse[tokenPrefixSize+len(sendInfoRaw):]
 
-	slots := bytes.SplitN(data, delimiter[:], 6) // create 6 slots
-	if len(slots) != 6 {
-		err = ErrInvalidResponseMessage
-		return
+	err = info.UnmarshalBinary(data)
+	if err != nil {
+		return ServerInfo{}, err
 	}
-
 	info.Address = address
-	info.Version = string(slots[0])
-	info.Name = string(slots[1])
-	info.Hostname = string(slots[2])
-	info.Map = string(slots[3])
-	info.GameType = string(slots[4])
-
-	data = slots[5] // get next raw data chunk
-
-	info.ServerFlags = int(data[0])
-	info.SkillLevel = int(data[1])
-
-	data = data[2:] // skip first two already evaluated bytes
-	v := compression.NewVarIntFrom(data)
-	info.NumPlayers, err = v.Unpack()
-	if err != nil {
-		err = ErrInvalidResponseMessage
-		return
-	}
-	info.MaxPlayers, err = v.Unpack()
-	if err != nil {
-		err = ErrInvalidResponseMessage
-		return
-	}
-	info.NumClients, err = v.Unpack()
-	if err != nil {
-		err = ErrInvalidResponseMessage
-		return
-	}
-	info.MaxClients, err = v.Unpack()
-	if err != nil {
-		err = ErrInvalidResponseMessage
-		return
-	}
-
-	// preallocate space for player pointers
-	info.Players = make([]PlayerInfo, 0, info.NumClients)
-
-	data = v.Bytes() // return the not yet used remaining data
-
-	for i := 0; i < info.NumClients; i++ {
-		player := PlayerInfo{}
-
-		slots := bytes.SplitN(v.Bytes(), delimiter, 3) // create 3 slots
-		if len(slots) != 3 {
-			err = ErrInvalidResponseMessage
-			return
-		}
-
-		player.Name = string(slots[0])
-		player.Clan = string(slots[1])
-
-		v = compression.NewVarIntFrom(slots[2])
-		player.Country, err = v.Unpack()
-		if err != nil {
-			err = ErrInvalidResponseMessage
-			return
-		}
-		player.Score, err = v.Unpack()
-		if err != nil {
-			err = ErrInvalidResponseMessage
-			return
-		}
-		player.Type, err = v.Unpack()
-		if err != nil {
-			err = ErrInvalidResponseMessage
-			return
-		}
-
-		info.Players = append(info.Players, player)
-	}
-
-	return info, nil
+	return
 }
 
 // packs header

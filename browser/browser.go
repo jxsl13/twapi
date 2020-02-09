@@ -248,10 +248,83 @@ func (s *ServerInfo) MarshalBinary() (data []byte, err error) {
 	v.Clear()
 
 	for _, player := range s.Players {
-		playerData, _ := player.MarshalBinary()
+		playerData, _ := player.marshalBinary()
 		data = append(data, playerData...)
 	}
 
+	return
+}
+
+// UnmarshalBinary creates a serverinfo from binary data
+func (s *ServerInfo) UnmarshalBinary(data []byte) (err error) {
+
+	slots := bytes.SplitN(data, delimiter[:], 6) // create 6 slots
+	if len(slots) != 6 {
+		return fmt.Errorf("expected slots: 6 got: %d", len(slots))
+	}
+
+	s.Version = string(slots[0])
+	s.Name = string(slots[1])
+	s.Hostname = string(slots[2])
+	s.Map = string(slots[3])
+	s.GameType = string(slots[4])
+
+	data = slots[5] // get next raw data chunk
+
+	s.ServerFlags = int(data[0])
+	s.SkillLevel = int(data[1])
+
+	data = data[2:] // skip first two already evaluated bytes
+	v := compression.NewVarIntFrom(data)
+	s.NumPlayers, err = v.Unpack()
+	if err != nil {
+		return
+	}
+	s.MaxPlayers, err = v.Unpack()
+	if err != nil {
+		return
+	}
+	s.NumClients, err = v.Unpack()
+	if err != nil {
+		return
+	}
+	s.MaxClients, err = v.Unpack()
+	if err != nil {
+		return
+	}
+
+	// preallocate space for player pointers
+	s.Players = make([]PlayerInfo, 0, s.NumClients)
+
+	data = v.Bytes() // return the not yet used remaining data
+
+	for i := 0; i < s.NumClients; i++ {
+		player := PlayerInfo{}
+
+		slots := bytes.SplitN(v.Bytes(), delimiter, 3) // create 3 slots
+		if len(slots) != 3 {
+			return fmt.Errorf("expected slots: 3 got: %d", len(slots))
+		}
+
+		player.Name = string(slots[0])
+		player.Clan = string(slots[1])
+
+		v = compression.NewVarIntFrom(slots[2])
+		player.Country, err = v.Unpack()
+		if err != nil {
+			return
+		}
+		player.Score, err = v.Unpack()
+		if err != nil {
+			return
+		}
+		player.Type, err = v.Unpack()
+		if err != nil {
+			return
+		}
+
+		s.Players = append(s.Players, player)
+	}
 	return
 }
 
@@ -275,9 +348,9 @@ func (p *PlayerInfo) String() string {
 	return string(b)
 }
 
-// MarshalBinary returns a binary representation of the PlayerInfo
+// marshalBinary returns a binary representation of the PlayerInfo
 // no delimiter is appended at the end of the byte slice
-func (p *PlayerInfo) MarshalBinary() (data []byte, err error) {
+func (p *PlayerInfo) marshalBinary() (data []byte, err error) {
 
 	data = make([]byte, 0, 2*len(delimiter)+len(p.Name)+len(p.Clan)+3*5)
 

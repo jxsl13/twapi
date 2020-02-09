@@ -87,11 +87,12 @@ var (
 	delimiter             = []byte("\x00")
 
 	masterServerHostnameAddresses = []string{"master1.teeworlds.com:8283", "master2.teeworlds.com:8283", "master3.teeworlds.com:8283", "master4.teeworlds.com:8283"}
-	masterServerAddresses         = initServerAddresses()
+	masterServerAddresses         = []*net.UDPAddr{}
 )
 
-func initServerAddresses() (result []*net.UDPAddr) {
-	result = make([]*net.UDPAddr, 0, len(masterServerHostnameAddresses))
+// init initializes a package on import
+func init() {
+	masterServerAddresses = make([]*net.UDPAddr, 0, len(masterServerHostnameAddresses))
 
 	for _, ms := range masterServerHostnameAddresses {
 		srv, err := net.ResolveUDPAddr("udp", ms)
@@ -99,10 +100,10 @@ func initServerAddresses() (result []*net.UDPAddr) {
 			Logger.Printf("Failed to resolve: %s\n", ms)
 		} else {
 			Logger.Printf("Resolved masterserver: %s -> %s\n", ms, srv.String())
-			result = append(result, srv)
+			masterServerAddresses = append(masterServerAddresses, srv)
 		}
 	}
-	if len(result) == 0 {
+	if len(masterServerAddresses) == 0 {
 		Logger.Fatalln("Could not resolve any masterservers.... terminating.")
 	}
 	return

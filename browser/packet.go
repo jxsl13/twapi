@@ -221,12 +221,12 @@ func ParseServerInfo(serverResponse []byte, address string) (info ServerInfo, er
 	// preallocate space for player pointers
 	info.Players = make([]PlayerInfo, 0, info.NumClients)
 
-	data = v.Data() // return the not yet used remaining data
+	data = v.Bytes() // return the not yet used remaining data
 
 	for i := 0; i < info.NumClients; i++ {
 		player := PlayerInfo{}
 
-		slots := bytes.SplitN(v.Data(), []byte("\x00"), 3) // create 3 slots
+		slots := bytes.SplitN(v.Bytes(), []byte("\x00"), 3) // create 3 slots
 		if len(slots) != 3 {
 			err = ErrInvalidResponseMessage
 			return

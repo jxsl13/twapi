@@ -174,7 +174,7 @@ func TestVarInt_Size(t *testing.T) {
 	}
 }
 
-func TestVarInt_Data(t *testing.T) {
+func TestVarInt_Bytes(t *testing.T) {
 	type fields struct {
 		Compressed []byte
 	}
@@ -191,8 +191,8 @@ func TestVarInt_Data(t *testing.T) {
 			v := &VarInt{
 				Compressed: tt.fields.Compressed,
 			}
-			if got := v.Data(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("VarInt.Data() = %v, want %v", got, tt.want)
+			if got := v.Bytes(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("VarInt.Bytes() = %v, want %v", got, tt.want)
 			}
 		})
 	}

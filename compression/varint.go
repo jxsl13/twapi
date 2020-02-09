@@ -32,7 +32,7 @@ func (v *VarInt) Size() int {
 }
 
 // Data returns the Compressed data slice.
-func (v *VarInt) Data() []byte {
+func (v *VarInt) Bytes() []byte {
 	if v.Compressed == nil {
 		v.Clear()
 	}

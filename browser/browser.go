@@ -38,7 +38,7 @@ const (
 	maxChunks                 = 16
 	maxServersPerMasterServer = 75
 
-	minTimeout = 35 * time.Millisecond
+	minTimeout = 60 * time.Millisecond
 )
 
 var (

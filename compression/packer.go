@@ -31,7 +31,7 @@ func (p *Packer) Size() int {
 }
 
 // Add integer, bytes or string
-func (p *Packer) Add(data interface{}) error {
+func (p *Packer) Add(data interface{}) {
 	p.init()
 
 	switch data.(type) {
@@ -48,10 +48,10 @@ func (p *Packer) Add(data interface{}) error {
 		p.Buffer = append(p.Buffer, data.([]byte)...)
 
 	default:
-		return ErrTypeNotSupported
+		panic(ErrTypeNotSupported)
 	}
 
-	return nil
+	return
 }
 
 // Unpacker unpacks received messages

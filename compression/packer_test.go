@@ -2,12 +2,30 @@ package compression
 
 import (
 	"bytes"
+	"errors"
 	"math/rand"
 	"testing"
 	"time"
 )
 
 func TestPackerAndUnpacker(t *testing.T) {
+
+	var invalidPacker Packer
+
+	invalidPacker.Add("5")
+	invalidPacker.Add(5)
+
+	invalidUnpacker := Unpacker{invalidPacker.Bytes()}
+
+	five, err := invalidUnpacker.NextString()
+	if five != "5" {
+		t.Fatalf("expected '5', got %s", five)
+	}
+
+	_, err = invalidUnpacker.NextString()
+	if !errors.Is(err, ErrNoStringToUnpack) {
+		t.Fatalf("expected no string error, got %s", err)
+	}
 
 	intTest := 5
 	stringTest := "abcdefg"
@@ -19,19 +37,9 @@ func TestPackerAndUnpacker(t *testing.T) {
 	numbers := make([]int, randoNumbers)
 
 	var p Packer
-	err := p.Add(intTest)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = p.Add(stringTest)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = p.Add(bytesTest)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p.Add(intTest)
+	p.Add(stringTest)
+	p.Add(bytesTest)
 
 	u := Unpacker{p.Bytes()}
 

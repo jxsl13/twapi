@@ -1,16 +1,7 @@
 package compression
 
 import (
-	"errors"
 	"unsafe"
-)
-
-var (
-	// ErrNoDataToUnpack is returned if the compressed array does not have sufficient data to unpack
-	ErrNoDataToUnpack = errors.New("no data")
-
-	// max bytes that can be received for one integer
-	maxBytesInVarInt = 5
 )
 
 // VarInt is used to compress integers in a variable length format.

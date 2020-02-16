@@ -73,7 +73,7 @@ func TestServerInfo_Equal(t *testing.T) {
 	}
 
 	if info.Equal(info2) {
-		t.Fatal("both info anf info2 are equal, but should not be.")
+		t.Fatal("both info and info2 are equal, but should not be.")
 	}
 
 	serverData, _ := info.MarshalBinary()

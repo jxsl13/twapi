@@ -240,9 +240,9 @@ func ServerInfosWithTimeouts(timeoutMasterServer, timeoutServer time.Duration) (
 	cm := NewConcurrentMap(512)
 
 	var wg sync.WaitGroup
-	wg.Add(len(masterServerAddresses))
+	wg.Add(len(MasterServerAddresses))
 
-	for _, ms := range masterServerAddresses {
+	for _, ms := range MasterServerAddresses {
 		ms := ms
 		go fetchServersFromMasterServerAddress(ms, timeoutMasterServer, timeoutServer, &cm, &wg)
 	}

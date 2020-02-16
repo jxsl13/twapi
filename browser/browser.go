@@ -84,13 +84,15 @@ var (
 	delimiter             = []byte("\x00")
 
 	masterServerHostnameAddresses = []string{"master1.teeworlds.com:8283", "master2.teeworlds.com:8283", "master3.teeworlds.com:8283", "master4.teeworlds.com:8283"}
-	masterServerAddresses         = []*net.UDPAddr{}
+
+	// MasterServerAddresses contains the resolved addresses as ip:port
+	MasterServerAddresses = []*net.UDPAddr{}
 )
 
 // init initializes a package on import
 func init() {
 	log.Println("Initializing twapi package...")
-	masterServerAddresses = make([]*net.UDPAddr, 0, len(masterServerHostnameAddresses))
+	MasterServerAddresses = make([]*net.UDPAddr, 0, len(masterServerHostnameAddresses))
 
 	for _, ms := range masterServerHostnameAddresses {
 		srv, err := net.ResolveUDPAddr("udp", ms)
@@ -98,10 +100,10 @@ func init() {
 			log.Printf("Failed to resolve: %s\n", ms)
 		} else {
 			log.Printf("Resolved masterserver: %s -> %s\n", ms, srv.String())
-			masterServerAddresses = append(masterServerAddresses, srv)
+			MasterServerAddresses = append(MasterServerAddresses, srv)
 		}
 	}
-	if len(masterServerAddresses) == 0 {
+	if len(MasterServerAddresses) == 0 {
 		log.Fatalln("Could not resolve any masterservers.... terminating.")
 	}
 

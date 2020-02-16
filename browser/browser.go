@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"time"
 
 	"github.com/jxsl13/twapi/compression"
@@ -42,10 +41,6 @@ const (
 )
 
 var (
-	// Logger creates the logging output. The user may define an own logger, like a file or other.
-	// the default value is the same as the standard logger from the "log" package
-	Logger = log.New(os.Stderr, "", log.LstdFlags)
-
 	// TimeoutMasterServers is used by ServerInfos as a value that drops few packets
 	TimeoutMasterServers = 5 * time.Second
 
@@ -94,20 +89,23 @@ var (
 
 // init initializes a package on import
 func init() {
+	log.Println("Initializing twapi package...")
 	masterServerAddresses = make([]*net.UDPAddr, 0, len(masterServerHostnameAddresses))
 
 	for _, ms := range masterServerHostnameAddresses {
 		srv, err := net.ResolveUDPAddr("udp", ms)
 		if err != nil {
-			Logger.Printf("Failed to resolve: %s\n", ms)
+			log.Printf("Failed to resolve: %s\n", ms)
 		} else {
-			Logger.Printf("Resolved masterserver: %s -> %s\n", ms, srv.String())
+			log.Printf("Resolved masterserver: %s -> %s\n", ms, srv.String())
 			masterServerAddresses = append(masterServerAddresses, srv)
 		}
 	}
 	if len(masterServerAddresses) == 0 {
-		Logger.Fatalln("Could not resolve any masterservers.... terminating.")
+		log.Fatalln("Could not resolve any masterservers.... terminating.")
 	}
+
+	log.Println("Initialization finished.")
 	return
 }
 

@@ -258,7 +258,6 @@ func fetchServersFromMasterServerAddress(ms *net.UDPAddr, timeoutMasterServer, t
 
 	conn, err := net.DialUDP("udp", nil, ms)
 	if err != nil {
-		Logger.Printf("Masterserver: %s : %v", ms.String(), err)
 		return
 	}
 	defer conn.Close()
@@ -266,13 +265,11 @@ func fetchServersFromMasterServerAddress(ms *net.UDPAddr, timeoutMasterServer, t
 
 	resp, err := Fetch("serverlist", conn, timeoutMasterServer)
 	if err != nil {
-		Logger.Printf("Masterserver: %s : %v", ms.String(), err)
 		return
 	}
 
 	servers, err := ParseServerList(resp)
 	if err != nil {
-		Logger.Printf("Masterserver: %s : %v", ms.String(), err)
 		return
 	}
 
@@ -291,7 +288,6 @@ func fetchServerInfoFromServerAddress(srv *net.UDPAddr, timeout time.Duration, c
 
 	conn, err := net.DialUDP("udp", nil, srv)
 	if err != nil {
-		Logger.Printf("Server: %s : %v", srv.String(), err)
 		return
 	}
 	defer conn.Close()
@@ -302,13 +298,11 @@ func fetchServerInfoFromServerAddress(srv *net.UDPAddr, timeout time.Duration, c
 
 	resp, err := Fetch("serverinfo", conn, timeout)
 	if err != nil {
-		Logger.Printf("Server: %s : %v", srv.String(), err)
 		return
 	}
 
 	info, err := ParseServerInfo(resp, srv.String())
 	if err != nil {
-		Logger.Printf("Server: %s : %v", srv.String(), err)
 		return
 	}
 

@@ -33,6 +33,13 @@ type ConcurrentMap struct {
 	sync.RWMutex
 }
 
+// Len returns the number of entries in the map
+func (cm *ConcurrentMap) Len() int {
+	cm.RLock()
+	defer cm.RUnlock()
+	return len(cm.Map)
+}
+
 // Add an element to the map
 func (cm *ConcurrentMap) Add(si ServerInfo, expiresIn time.Duration) {
 	esi := ExpiringServerInfo{ServerInfo: si}

@@ -94,12 +94,16 @@ func (cm *ConcurrentMap) Values() (infos []ServerInfo) {
 }
 
 // Cleanup removes all expired entries
-func (cm *ConcurrentMap) Cleanup() {
+func (cm *ConcurrentMap) Cleanup() int {
+	cleanedUp := 0
 	cm.Lock()
 	for key, value := range cm.Map {
 		if value.Expired() {
 			delete(cm.Map, key)
+			cleanedUp++
 		}
 	}
 	cm.Unlock()
+
+	return cleanedUp
 }

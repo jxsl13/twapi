@@ -105,10 +105,9 @@ func (v *VarInt) Pack(value int) {
 	}
 
 	intSize := unsafe.Sizeof(value)
-	maxBufferSize := uintptr(64/(intSize*8)) + 2 + (intSize - 1) // (sign bit + extend bit) + (n-1) * (extend bit)
 
 	// buffer
-	data := make([]byte, maxBufferSize) // predefined content of zeroes
+	data := make([]byte, maxBytesInVarInt) // predefined content of zeroes
 	index := 0
 
 	data[index] = byte(value>>(intSize*8-7)) & 0b01000000 // set sign bit if i<0

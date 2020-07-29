@@ -228,6 +228,7 @@ func (s *ServerInfo) MarshalBinary() (data []byte, err error) {
 	s.fix()
 	data = make([]byte, 0, maxBufferSize)
 
+	// pack
 	data = append(data, []byte(s.Version)...)
 	data = append(data, delimiter...)
 
@@ -243,8 +244,7 @@ func (s *ServerInfo) MarshalBinary() (data []byte, err error) {
 	data = append(data, []byte(s.GameType)...)
 	data = append(data, delimiter...)
 
-	data = append(data, byte(s.ServerFlags))
-	data = append(data, byte(s.SkillLevel))
+	data = append(data, byte(s.ServerFlags), byte(s.SkillLevel))
 
 	var v compression.VarInt
 

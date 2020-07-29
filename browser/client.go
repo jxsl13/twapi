@@ -3,6 +3,7 @@ package browser
 import (
 	"bytes"
 	"io"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -233,6 +234,61 @@ func Fetch(packet string, rwd ReadWriteDeadliner, timeout time.Duration) (respon
 // with a rather low packet loss, but still being rather small.
 func ServerInfos() (infos []ServerInfo) {
 	return ServerInfosWithTimeouts(TimeoutMasterServers, TimeoutServers)
+}
+
+// GetServerInfoWithTimeout fetches the server info from the passed address
+// if the timeout is less than 60ms the default if 60ms is used.
+// 60ms has been tested to be the lowest sane response time to get the server info.
+func GetServerInfoWithTimeout(ip string, port int, timeout time.Duration) (ServerInfo, error) {
+	info := ServerInfo{}
+
+	ipAddr := net.ParseIP(ip)
+
+	if ipAddr == nil {
+		return info, ErrInvalidIP
+	}
+
+	if port < 0 || math.MaxUint16 < port {
+		return info, ErrInvalidPort
+	}
+
+	if timeout < minTimeout {
+		timeout = minTimeout
+	}
+
+	srv := &net.UDPAddr{
+		IP:   ipAddr,
+		Port: port,
+	}
+
+	conn, err := net.DialUDP("udp", nil, srv)
+	if err != nil {
+		return info, err
+	}
+	defer conn.Close()
+
+	// increase buffers for writing and reading
+	conn.SetReadBuffer(maxBufferSize)
+	conn.SetWriteBuffer(int(maxBufferSize * timeout.Seconds()))
+
+	resp, err := Fetch("serverinfo", conn, timeout)
+	if err != nil {
+		return info, err
+	}
+
+	info, err = ParseServerInfo(resp, srv.String())
+	if err != nil {
+		return info, err
+	}
+
+	return info, nil
+}
+
+// GetServerInfo fetches the server info of a given ip and port.
+// it timeouts after about 16 seconds. If a smaller timeout and response time is needed, please use
+// GetServerInfoWithTimeout() instead. 
+func GetServerInfo(ip string, port int) (ServerInfo, error) {
+	return GetServerInfoWithTimeout(ip, port, TimeoutServers)
 }
 
 // ServerInfosWithTimeouts retrieves the full serverlist with all of the server's infos from the masterservers as well as the individual servers

@@ -50,6 +50,12 @@ var (
 	// TimeoutServers is also used by ServerInfos as a alue that drops few packets
 	TimeoutServers = TokenExpirationDuration
 
+	// ErrInvalidIP is returned if the passed IP to some function is not a valid IP address
+	ErrInvalidIP = errors.New("invalid IP error, passed")
+
+	// ErrInvalidPort is returned if the passed port is either negative or an invalid value above 65536.
+	ErrInvalidPort = errors.New("invalid IP error, passed")
+
 	// ErrTokenExpired is returned when a request packet is being constructed with an expired token
 	ErrTokenExpired = errors.New("token expired")
 
@@ -195,6 +201,23 @@ type ServerInfo struct {
 	NumClients  int          `json:"num_clients"`
 	MaxClients  int          `json:"max_clients"`
 	Players     []PlayerInfo `json:"players"`
+}
+
+// Empty returns true if the whole struct does not contain any data at all
+func (s *ServerInfo) Empty() bool {
+	return s.Address == "" &&
+		s.Version == "" &&
+		s.Name == "" &&
+		s.Hostname == "" &&
+		s.Map == "" &&
+		s.GameType == "" &&
+		s.ServerFlags == 0 &&
+		s.SkillLevel == 0 &&
+		s.NumPlayers == 0 &&
+		s.MaxPlayers == 0 &&
+		s.NumClients == 0 &&
+		s.MaxClients == 0 &&
+		len(s.Players) == 0
 }
 
 // fix synchronizes the length of playerInfo with its struct field

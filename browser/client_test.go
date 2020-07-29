@@ -196,3 +196,30 @@ func TestMatchResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestServerInfo(t *testing.T) {
+	type args struct {
+		ip   string
+		port int
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{"zCatch server", args{"89.163.148.121", 8305}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GetServerInfo(tt.args.ip, tt.args.port)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ServerInfo() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if got.Empty() {
+				t.Error("ServerInfo() = is empty")
+			}
+		})
+	}
+}

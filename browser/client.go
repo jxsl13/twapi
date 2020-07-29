@@ -117,7 +117,7 @@ func Receive(packet string, r io.Reader) (response []byte, err error) {
 	response = make([]byte, maxBufferSize)
 	read, err := r.Read(response)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if read == 0 {
@@ -133,7 +133,7 @@ func Receive(packet string, r io.Reader) (response []byte, err error) {
 	if match != packet {
 		err = ErrRequestResponseMismatch
 	}
-	return
+	return response, err
 }
 
 // FetchWithToken is the same as Fetch, but it retries fetching data for a specific time.

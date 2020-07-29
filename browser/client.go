@@ -26,15 +26,14 @@ func ReceiveToken(r io.Reader) (response []byte, err error) {
 	response = make([]byte, tokenResponseSize)
 	read, err := r.Read(response)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if read != tokenResponseSize {
 		err = ErrInvalidResponseMessage
 	}
 
-	response = response[:read]
-	return
+	return response[:read], err
 }
 
 // FetchToken tries to fetch a token from the server for a specific duration at most. a timeout below 35 ms will be set to 35 ms

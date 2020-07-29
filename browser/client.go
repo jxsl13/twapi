@@ -48,7 +48,7 @@ func FetchToken(rwd ReadWriteDeadliner, timeout time.Duration) (response []byte,
 	writeBurst := 1.0
 
 	for {
-		timeLeft = timeout - time.Now().Sub(begin)
+		timeLeft = timeout - time.Since(begin)
 		rwd.SetReadDeadline(time.Now().Add(currentTimeout))
 
 		if timeLeft <= 0 {
@@ -72,7 +72,7 @@ func FetchToken(rwd ReadWriteDeadliner, timeout time.Duration) (response []byte,
 		}
 
 		// increase time & request burst
-		timeLeft = timeout - time.Now().Sub(begin)
+		timeLeft = timeout - time.Since(begin)
 		if timeLeft <= currentTimeout {
 			currentTimeout = timeLeft
 		} else {
@@ -150,7 +150,7 @@ func FetchWithToken(packet string, token Token, rwd ReadWriteDeadliner, timeout 
 	writeBurst := 1
 
 	for {
-		timeLeft = timeout - time.Now().Sub(begin)
+		timeLeft = timeout - time.Since(begin)
 		rwd.SetReadDeadline(time.Now().Add(currentTimeout))
 
 		if timeLeft <= 0 {
@@ -174,7 +174,7 @@ func FetchWithToken(packet string, token Token, rwd ReadWriteDeadliner, timeout 
 		}
 
 		// increase time & request burst
-		timeLeft = timeout - time.Now().Sub(begin)
+		timeLeft = timeout - time.Since(begin)
 		if timeLeft <= currentTimeout {
 			currentTimeout = timeLeft
 		} else {
@@ -219,7 +219,7 @@ func Fetch(packet string, rwd ReadWriteDeadliner, timeout time.Duration) (respon
 	if err != nil {
 		return
 	}
-	timeLeft := timeout - time.Now().Sub(begin)
+	timeLeft := timeout - time.Since(begin)
 	resp, err = FetchWithToken(packet, token, rwd, timeLeft)
 	if err != nil {
 		return

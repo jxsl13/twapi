@@ -22,9 +22,21 @@ import (
 )
 
 func main() {
+    // fetch all server infos (that respond within 16 seconds)
+    // if no servers responded, this list will be empty.
     infos := browser.ServerInfos()
     for _, info := range infos {
-        fmt.Println(info.String())
+        fmt.Println(info)
+    }
+
+    // fetches the specified server's players, server name, etc.
+    // if no answer is received within 16 seconds, this function returns
+    // an error
+    info, err := browser.GetServerInfo("89.163.148.121", 8305)
+    if err != nil {
+        fmt.Println(err)
+    } else {
+        fmt.Println(info)
     }
 }
 ```

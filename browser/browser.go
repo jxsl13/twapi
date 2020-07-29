@@ -296,7 +296,7 @@ func (s *ServerInfo) UnmarshalBinary(data []byte) (err error) {
 	// preallocate space for player pointers
 	s.Players = make([]PlayerInfo, 0, s.NumClients)
 
-	data = v.Bytes() // return the not yet used remaining data
+	v.Bytes() // return the not yet used remaining data
 
 	for i := 0; i < s.NumClients; i++ {
 		player := PlayerInfo{}

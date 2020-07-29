@@ -112,7 +112,7 @@ func ParseServerList(serverResponse []byte) (ServerList, error) {
 	ipv4Prefix := [12]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF}
 
 	for idx := 0; idx < numServers; idx++ {
-		ip := []byte{}
+		var ip []byte
 
 		// compare byte slices
 		if bytes.Equal(ipv4Prefix[:], data[idx*18:idx*18+12]) {

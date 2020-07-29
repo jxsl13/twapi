@@ -62,6 +62,10 @@ var (
 	// ErrUnexpectedResponseHeader is returned, if a message is passed to a parsing function, that expects a different response
 	ErrUnexpectedResponseHeader = errors.New("unexpected response header")
 
+	// ErrMalformedResponseData is reurned is a server sends broken or malformed response data
+	// that cannot be properly parsed.
+	ErrMalformedResponseData = errors.New("malformed response data")
+
 	// ErrTimeout is used in Retry functions that support a timeout parameter
 	ErrTimeout = errors.New("timeout")
 
@@ -83,7 +87,12 @@ var (
 	sendInfoRaw           = []byte(sendInfo)
 	delimiter             = []byte("\x00")
 
-	masterServerHostnameAddresses = []string{"master1.teeworlds.com:8283", "master2.teeworlds.com:8283", "master3.teeworlds.com:8283", "master4.teeworlds.com:8283"}
+	masterServerHostnameAddresses = []string{
+		"master1.teeworlds.com:8283",
+		"master2.teeworlds.com:8283",
+		"master3.teeworlds.com:8283",
+		"master4.teeworlds.com:8283",
+	}
 
 	// MasterServerAddresses contains the resolved addresses as ip:port
 	MasterServerAddresses = []*net.UDPAddr{}
@@ -260,7 +269,7 @@ func (s *ServerInfo) UnmarshalBinary(data []byte) (err error) {
 
 	slots := bytes.SplitN(data, delimiter[:], 6) // create 6 slots
 	if len(slots) != 6 {
-		return fmt.Errorf("expected slots: 6 got: %d", len(slots))
+		return fmt.Errorf("%w : expected slots: 6 got: %d", ErrMalformedResponseData, len(slots))
 	}
 
 	s.Version = string(slots[0])
@@ -303,7 +312,7 @@ func (s *ServerInfo) UnmarshalBinary(data []byte) (err error) {
 
 		slots := bytes.SplitN(v.Bytes(), delimiter, 3) // create 3 slots
 		if len(slots) != 3 {
-			return fmt.Errorf("expected slots: 3 got: %d", len(slots))
+			return fmt.Errorf("%w : expected slots: 3 got: %d", ErrMalformedResponseData, len(slots))
 		}
 
 		player.Name = string(slots[0])

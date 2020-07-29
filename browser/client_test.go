@@ -25,21 +25,17 @@ func getServerInfo(addr *net.UDPAddr, t *testing.T, wg *sync.WaitGroup, cnt *asy
 	defer wg.Done()
 
 	t.Logf("\n\nServer: %s", addr.String())
+
 	conn, err := net.DialUDP("udp", nil, addr)
 	if err != nil {
-		t.Error(err)
+		t.Logf("connection to server failed: %v", err)
 		return
 	}
 	defer conn.Close()
 
 	resp, err := FetchToken(conn, 5*time.Second)
 	if err != nil {
-		if errors.Is(err, ErrTimeout) {
-			t.Log(err)
-			return
-		}
-
-		t.Error(err)
+		t.Log(err)
 		return
 	}
 
@@ -58,7 +54,11 @@ func getServerInfo(addr *net.UDPAddr, t *testing.T, wg *sync.WaitGroup, cnt *asy
 
 	info, err := ParseServerInfo(resp, addr.String())
 	if err != nil {
-		t.Error(err)
+		if errors.Is(err, ErrMalformedResponseData) {
+			t.Log(err)
+		} else {
+			t.Error(err)
+		}
 		return
 	}
 

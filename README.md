@@ -1,6 +1,6 @@
 # Teeworlds API written in Go 
 
-## ![Test](https://github.com/jxsl13/twapi/workflows/Test/badge.svg) ![Go Report](https://goreportcard.com/badge/github.com/jxsl13/twapi) [![GoDoc](https://godoc.org/github.com/jxsl13/twapi?status.svg)](https://godoc.org/github.com/jxsl13/twapi) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![codecov](https://codecov.io/gh/jxsl13/twapi/branch/master/graph/badge.svg)](https://codecov.io/gh/jxsl13/twapi) [![deepsource](https://static.deepsource.io/deepsource-badge-light.svg)](https://deepsource.io/gh/jxsl13/twapi/)
+## ![Test](https://github.com/jxsl13/twapi/workflows/Test/badge.svg) ![Go Report](https://goreportcard.com/badge/github.com/jxsl13/twapi) [![GoDoc](https://godoc.org/github.com/jxsl13/twapi?status.svg)](https://godoc.org/github.com/jxsl13/twapi) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![codecov](https://codecov.io/gh/jxsl13/twapi/branch/master/graph/badge.svg)](https://codecov.io/gh/jxsl13/twapi) [![codebeat badge](https://codebeat.co/badges/4b5339f2-93d6-4242-96a6-0372e66a7aaf)](https://codebeat.co/projects/github-com-jxsl13-twapi-master) [![deepsource](https://static.deepsource.io/deepsource-badge-light.svg)](https://deepsource.io/gh/jxsl13/twapi/)
 
 Currently this supports only the server browser api.
 It is possible to retrieve data from the masterservers as well as the server information from the game servers.

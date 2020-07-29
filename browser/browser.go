@@ -41,6 +41,9 @@ const (
 )
 
 var (
+	// Logging can be set to "true" in order to see more logging output from the package.
+	Logging = false
+
 	// TimeoutMasterServers is used by ServerInfos as a value that drops few packets
 	TimeoutMasterServers = 5 * time.Second
 
@@ -100,24 +103,24 @@ var (
 
 // init initializes a package on import
 func init() {
-	log.Println("Initializing twapi package...")
+	if Logging {
+		log.Println("Initializing twapi package...")
+	}
+
 	MasterServerAddresses = make([]*net.UDPAddr, 0, len(masterServerHostnameAddresses))
 
 	for _, ms := range masterServerHostnameAddresses {
 		srv, err := net.ResolveUDPAddr("udp", ms)
-		if err != nil {
+		if err != nil && Logging {
 			log.Printf("Failed to resolve: %s\n", ms)
 		} else {
 			log.Printf("Resolved masterserver: %s -> %s\n", ms, srv.String())
 			MasterServerAddresses = append(MasterServerAddresses, srv)
 		}
 	}
-	if len(MasterServerAddresses) == 0 {
-		log.Fatalln("Could not resolve any masterservers.... terminating.")
+	if Logging && len(MasterServerAddresses) == 0 {
+		log.Println("Could not resolve any masterservers.... please check your internet connection.")
 	}
-
-	log.Println("Initialization finished.")
-	return
 }
 
 // ReadWriteDeadliner narrows the used uparations of the passed type.

@@ -50,8 +50,6 @@ func (p *Packer) Add(data interface{}) {
 	default:
 		panic(ErrTypeNotSupported)
 	}
-
-	return
 }
 
 // Unpacker unpacks received messages

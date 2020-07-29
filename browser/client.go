@@ -115,19 +115,21 @@ func Request(packet string, token Token, w io.Writer) (err error) {
 // If the message is not valid it is still returned.
 func Receive(packet string, r io.Reader) (response []byte, err error) {
 	response = make([]byte, maxBufferSize)
+
 	read, err := r.Read(response)
 	if err != nil {
 		return nil, err
 	}
 
+	response = response[:read]
+
 	if read == 0 {
-		err = ErrInvalidResponseMessage
+		return response, ErrInvalidResponseMessage
 	}
 
-	response = response[:read]
 	match, err := MatchResponse(response)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if match != packet {

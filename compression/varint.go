@@ -1,6 +1,7 @@
 package compression
 
 import (
+	"math"
 	"unsafe"
 )
 
@@ -100,7 +101,7 @@ func (v *VarInt) Pack(value int) {
 		v.Clear()
 	}
 
-	if value < -2147483648 || 2147483647 < value {
+	if value < math.MinInt32 || math.MaxInt32 < value {
 		panic("ERROR: value to Pack is out of bounds, should be within range [-2147483648:2147483647] (32bit)")
 	}
 

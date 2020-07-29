@@ -72,7 +72,7 @@ func (v *VarInt) Unpack() (value int, err error) {
 	}
 
 	index := 0
-	data := v.Compressed[:]
+	data := v.Compressed
 
 	// handle first byte (most right side)
 	sign := int((data[index] >> 6) & 0b00000001)

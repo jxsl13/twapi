@@ -267,7 +267,7 @@ func (s *ServerInfo) MarshalBinary() (data []byte, err error) {
 // UnmarshalBinary creates a serverinfo from binary data
 func (s *ServerInfo) UnmarshalBinary(data []byte) (err error) {
 
-	slots := bytes.SplitN(data, delimiter[:], 6) // create 6 slots
+	slots := bytes.SplitN(data, delimiter, 6) // create 6 slots
 	if len(slots) != 6 {
 		return fmt.Errorf("%w : expected slots: 6 got: %d", ErrMalformedResponseData, len(slots))
 	}

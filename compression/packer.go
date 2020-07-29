@@ -34,18 +34,18 @@ func (p *Packer) Size() int {
 func (p *Packer) Add(data interface{}) {
 	p.init()
 
-	switch data.(type) {
+	switch t := data.(type) {
 	case int:
 		var v VarInt
-		v.Pack(data.(int))
+		v.Pack(t)
 		p.Buffer = append(p.Buffer, v.Bytes()...)
 
 	case string:
-		p.Buffer = append(p.Buffer, []byte(data.(string))...)
+		p.Buffer = append(p.Buffer, []byte(t)...)
 		p.Buffer = append(p.Buffer, byte(0)) // string separator
 
 	case []byte:
-		p.Buffer = append(p.Buffer, data.([]byte)...)
+		p.Buffer = append(p.Buffer, t...)
 
 	default:
 		panic(ErrTypeNotSupported)

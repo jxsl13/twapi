@@ -117,10 +117,14 @@ func init() {
 
 	for _, ms := range masterServerHostnameAddresses {
 		srv, err := net.ResolveUDPAddr("udp", ms)
-		if err != nil && Logging {
-			log.Printf("Failed to resolve: %s\n", ms)
+		if err != nil {
+			if Logging {
+				log.Printf("Failed to resolve: %s\n", ms)
+			}
 		} else {
-			log.Printf("Resolved masterserver: %s -> %s\n", ms, srv.String())
+			if Logging {
+				log.Printf("Resolved masterserver: %s -> %s\n", ms, srv.String())
+			}
 			MasterServerAddresses = append(MasterServerAddresses, srv)
 		}
 	}

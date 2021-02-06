@@ -33,9 +33,9 @@ type Conn struct {
 func (c *Conn) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.logout()
 	err := error(nil)
 	c.closeOnce.Do(func() {
+		c.logout()
 		c.isClosed = true
 		err = c.telnetConn.Close()
 	})

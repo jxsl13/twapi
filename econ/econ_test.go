@@ -1,6 +1,7 @@
 package econ
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -25,4 +26,12 @@ func TestDialTo(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
+
+	for i := 0; i < 30; i++ {
+		line, err := conn.ReadLine()
+		if err != nil {
+			t.Error(err)
+		}
+		fmt.Printf("Line: %s\n", line)
+	}
 }

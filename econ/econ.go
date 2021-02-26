@@ -24,15 +24,12 @@ type Conn struct {
 	password         string
 	reconnectRetries int
 	reconnectDelay   time.Duration
-	mu               sync.Mutex
 	isClosed         bool
 	closeOnce        sync.Once
 }
 
 // Close must be called when the connection is to be quit
 func (c *Conn) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	err := error(nil)
 	c.closeOnce.Do(func() {
 		c.logout()
@@ -50,8 +47,6 @@ func (c *Conn) logout() error {
 // if the connection is lost, it attempts to reconnect multiple times before
 // trying to read the line again.
 func (c *Conn) ReadLine() (string, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	line, err := c.unguardedReadLine()
 	if err == nil {
@@ -113,8 +108,6 @@ func (c *Conn) unguardedReadLine() (string, error) {
 
 // WriteLine writes a line to the external console and forces its execution by appending a \n
 func (c *Conn) WriteLine(line string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	err := c.unguardedWriteLine(line)
 	if err == nil {

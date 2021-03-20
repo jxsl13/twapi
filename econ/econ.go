@@ -26,6 +26,7 @@ type Conn struct {
 	reconnectDelay   time.Duration
 	isClosed         bool
 	closeOnce        sync.Once
+	authCommandList  []string
 }
 
 // Close must be called when the connection is to be quit
@@ -41,6 +42,18 @@ func (c *Conn) Close() error {
 
 func (c *Conn) logout() error {
 	return c.unguardedWriteLine("logout")
+}
+
+// AddOnConnectCommand adds a new command that is executed every time the client
+// successfully authenticates at the teeworlds econ. After a reconnect the commands are executed
+// again.
+func (c *Conn) AddOnConnectCommand(command string) {
+	c.authCommandList = append(c.authCommandList, command)
+}
+
+// ClearOnConnectCommands removes all on connect commands.
+func (c *Conn) ClearOnConnectCommands() {
+	c.authCommandList = []string{}
 }
 
 // ReadLine reads a line from the external console
@@ -213,6 +226,10 @@ func (c *Conn) authenticate() error {
 
 	if line != "Authentication successful. External console access granted." {
 		return fmt.Errorf("%w: %s", ErrInvalidPassword, line)
+	}
+
+	for _, cmd := range c.authCommandList {
+		c.unguardedWriteLine(cmd)
 	}
 	return nil
 }

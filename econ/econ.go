@@ -44,18 +44,6 @@ func (c *Conn) logout() error {
 	return c.unguardedWriteLine("logout")
 }
 
-// AddOnConnectCommand adds a new command that is executed every time the client
-// successfully authenticates at the teeworlds econ. After a reconnect the commands are executed
-// again.
-func (c *Conn) AddOnConnectCommand(command string) {
-	c.authCommandList = append(c.authCommandList, command)
-}
-
-// ClearOnConnectCommands removes all on connect commands.
-func (c *Conn) ClearOnConnectCommands() {
-	c.authCommandList = []string{}
-}
-
 // ReadLine reads a line from the external console
 // if the connection is lost, it attempts to reconnect multiple times before
 // trying to read the line again.
@@ -246,8 +234,19 @@ func New(address, password string) (*Conn, error) {
 	return DialTo(address, password)
 }
 
+// NewWithOnConnectCommands creates a new connection with command
+// that are executed on every connect and reconnect
+func NewWithOnConnectCommands(address, password string, commands []string) (*Conn, error) {
+	return DialToWithOnConnectCommands(address, password, commands)
+}
+
 // DialTo connects to a server's econ port and tries to log in.
 func DialTo(address, password string) (*Conn, error) {
+	return DialToWithOnConnectCommands(address, password, nil)
+}
+
+// DialToWithOnConnectCommands connects to a server's econ port and tries to log in.
+func DialToWithOnConnectCommands(address, password string, commands []string) (*Conn, error) {
 	telnetConn, err := telnet.DialTo(address)
 	if err != nil {
 		return nil, err
@@ -258,6 +257,7 @@ func DialTo(address, password string) (*Conn, error) {
 		password:         password,
 		reconnectDelay:   time.Second,
 		reconnectRetries: 360, // retry 6 minutes before failing
+		authCommandList:  commands,
 	}
 
 	err = c.authenticate()

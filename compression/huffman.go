@@ -129,10 +129,10 @@ func (h *Huffman) constructTree(frequencies []uint) {
 	}
 
 	// set start node
-	startNode := &h.Nodes[numNodes-1]
+	h.StartNode = &h.Nodes[numNodes-1]
 
 	// build symbol bits
-	h.setBitsR(startNode, 0, 0)
+	h.setBitsR(h.StartNode, 0, 0)
 }
 
 //Function: huffman_init
@@ -190,7 +190,7 @@ func (h *Huffman) Init(frequencies []uint) {
 // 		output_size - Size of the output buffer
 // Returns:
 // 	Returns the size of the compressed data. Negative value on failure.
-func (h *Huffman) Compress(input []byte, output *[]byte) (int, error) {
+func (h *Huffman) Compress(input []byte) (output []byte, err error) {
 
 	// symbol variables
 	Bits := uint(0)
@@ -211,12 +211,8 @@ func (h *Huffman) Compress(input []byte, output *[]byte) (int, error) {
 	// convenience function like the makro in the C code
 	write := func() error {
 		for Bitcount >= 8 {
-			(*output)[dst] = byte(Bits) & 0xff
-			dst++
-
-			if dst == dstEnd {
-				return errors.New("compression failed")
-			}
+			value := byte(Bits & 0xff)
+			output = append(output, value)
 
 			Bits >>= 8
 			Bitcount -= 8
@@ -225,7 +221,7 @@ func (h *Huffman) Compress(input []byte, output *[]byte) (int, error) {
 	}
 
 	// make sure that we have data that we want to compress
-	if len(input) != 0 {
+	if len(input) > 0 {
 		// {A} load the first symbol
 		Symbol := uint(input[src])
 		src++
@@ -240,21 +236,21 @@ func (h *Huffman) Compress(input []byte, output *[]byte) (int, error) {
 
 			// {B} write the symbol loaded at
 			if err := write(); err != nil {
-				return -1, err
+				return nil, err
 			}
 		}
 
 		// write the last symbol loaded from {C} or {A} in the case of only 1 byte input buffer
 		loadSymbol(Symbol)
 		if err := write(); err != nil {
-			return -1, err
+			return nil, err
 		}
 	}
 
 	// write EOF symbol
 	loadSymbol(HuffmanEOFSymbol)
 	if err := write(); err != nil {
-		return -1, err
+		return nil, err
 	}
 
 	// write out the last bits
@@ -275,12 +271,13 @@ func (h *Huffman) Compress(input []byte, output *[]byte) (int, error) {
 //
 // Returns:
 // Returns the size of the uncompressed data. Negative value on failure.
-func (h *Huffman) Decompress(input []byte, output *[]byte) (int, error) {
+func (h *Huffman) Decompress(input []byte) (output []byte, err error) {
+
+	output = make([]byte, 0, len(input)*2)
+
 	// setup buffer pointers
 	src := 0
 	srcEnd := len(input)
-	dst := 0
-	dstEnd := len(*output)
 
 	Bits := uint(0)
 	Bitcount := uint(0)
@@ -297,18 +294,18 @@ func (h *Huffman) Decompress(input []byte, output *[]byte) (int, error) {
 
 		// {B} fill with new bits
 		for Bitcount < 24 && src != srcEnd {
-			Bits |= uint(input[src]) << Bitcount
+			Bits |= uint(input[src] << Bitcount)
 			src++
 			Bitcount += 8
 		}
 
 		// {C} load symbol now if we didn't that earlier at location {A}
-		if node != nil {
+		if node == nil {
 			node = h.DecodeLut[Bits&HuffmanLutMask]
 		}
-
+		// if node still nil
 		if node == nil {
-			return -1, errors.New("decompression failed: node is nil")
+			return nil, errors.New("decompression failed: node is nil")
 		}
 
 		// {D} check if we hit a symbol already
@@ -340,7 +337,7 @@ func (h *Huffman) Decompress(input []byte, output *[]byte) (int, error) {
 
 				// no more bits, decoding error
 				if Bitcount == 0 {
-					return -1, errors.New("decompression failed: no more bits")
+					return nil, errors.New("decompression failed: no more bits")
 				}
 			}
 		}
@@ -350,15 +347,9 @@ func (h *Huffman) Decompress(input []byte, output *[]byte) (int, error) {
 			break
 		}
 
-		// output character
-		if dst == dstEnd {
-			return -1, errors.New("decompression failed: reached output end too early")
-		}
-
-		(*output)[dst] = node.Symbol
-		dst++
+		output = append(output, node.Symbol)
 	}
 
 	// return the size of the decompressed buffer
-	return dst, nil
+	return output, nil
 }

@@ -1,6 +1,8 @@
 package compression
 
-import "errors"
+import (
+	"errors"
+)
 
 var (
 	frequenciesTable = initFrequenciesTable()
@@ -199,8 +201,6 @@ func (h *Huffman) Compress(input []byte) (output []byte, err error) {
 	// setup buffer indices
 	src := 0
 	srcEnd := len(input)
-	dst := 0
-	dstEnd := len(*output)
 
 	// convenience function like the macro in the C code
 	loadSymbol := func(Sym uint) {
@@ -254,11 +254,10 @@ func (h *Huffman) Compress(input []byte) (output []byte, err error) {
 	}
 
 	// write out the last bits
-	(*output)[dst] = byte(Bits)
-	dst++
+	output = append(output, byte(Bits))
 
 	// return the size of the output
-	return dst, nil
+	return output, nil
 
 }
 

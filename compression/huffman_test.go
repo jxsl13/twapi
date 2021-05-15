@@ -3,7 +3,6 @@ package compression
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"testing"
 )
 
@@ -97,41 +96,33 @@ func TestHuffman_Compress_Decompress(t *testing.T) {
 	}{
 		{"#1", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, false},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			compressed, err := huffman.Compress(tt.input)
-			if err != nil {
-				t.Errorf("Huffman.Compress() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			compressed := make([]byte, 0, len(tt.input)*2)
+			l := huffman.Compress(tt.input, len(tt.input), &compressed, cap(compressed))
+			if l < 0 {
+				t.Error("Compress failed")
 			}
 			if len(compressed) == 0 {
 				t.Error("Huffman.Compress() : Compressed length is 0")
 				return
 			}
 
-			decompressed, err := huffman.Decompress(compressed)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("\nInput        = %v\nCompressed   = %v\n", tt.input, compressed)
-				t.Errorf("Huffman.Decompress() error = %v, wantErr %v", err, tt.wantErr)
+			decompressed := make([]byte, 0, cap(compressed))
+			l = huffman.Decompress(compressed, len(compressed), &decompressed, cap(decompressed))
+			if l < 0 {
+				t.Error("Decompress failed")
+			}
+			if len(decompressed) == 0 {
+				t.Error("Huffman.Decompress() : Decompressed length is 0")
 				return
 			}
 
 			if !bytes.Equal(tt.input, decompressed) {
-				t.Errorf("\nInput        = %v\nCompressed   = %v\nDecompressed = %v", tt.input, compressed, decompressed)
-				return
+				t.Errorf("Input:\n%v\nCompressed:\n%v\nDecompressed:\n%v\n", tt.input, compressed, decompressed)
 			}
 
 		})
 	}
-}
-
-func Test_initFrequenciesTable(t *testing.T) {
-	sb := strings.Builder{}
-	sb.WriteString("{\n")
-	for _, f := range frequenciesTable {
-		sb.WriteString(fmt.Sprintf("%d, ", byte(f)))
-	}
-	sb.WriteString("\n}")
-
-	t.Errorf("\nTable: %v\n", sb.String())
 }

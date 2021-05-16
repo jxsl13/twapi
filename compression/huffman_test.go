@@ -3,7 +3,6 @@ package compression
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"math/rand"
 	"testing"
 )
@@ -90,12 +89,6 @@ func swap(arr []*huffmanConstructNode, i, k int) {
 func TestHuffman_Compress_Decompress(t *testing.T) {
 	huffman := NewHuffman()
 
-	buffer := bytes.NewBuffer(nil)
-	// writes to buffer
-	huffmanEncoder := NewHuffmanEncoder(buffer)
-	// reads from buffer
-	huffmanDecoder := NewHuffmanDecoder(buffer)
-
 	type test struct {
 		name    string
 		input   []byte
@@ -122,7 +115,6 @@ func TestHuffman_Compress_Decompress(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer buffer.Reset()
 
 			compressed := make([]byte, 0, len(tt.input)*2)
 			l := huffman.Compress(tt.input, len(tt.input), &compressed, cap(compressed))
@@ -134,33 +126,11 @@ func TestHuffman_Compress_Decompress(t *testing.T) {
 				return
 			}
 
-			_, err := huffmanEncoder.Write(tt.input)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-
-			if !bytes.Equal(compressed, buffer.Bytes()) {
-				t.Errorf("Huffman.Compress():\n%v\nHuffmanEncoder.Write():\n%v\n", compressed, buffer.Bytes())
-				return
-			}
-
-			decompressed := make([]byte, 0, cap(compressed))
+			decompressed := make([]byte, 0, cap(compressed)*2)
 			l = huffman.Decompress(compressed, len(compressed), &decompressed, cap(decompressed))
 			if l < 0 {
 				t.Error("Decompress failed")
-			}
-
-			decompressesReader := make([]byte, len(decompressed)+rand.Intn(2))
-			n, err := huffmanDecoder.Read(decompressesReader)
-			if err != nil && err != io.EOF {
-				t.Error(err)
 				return
-			}
-			decompressesReader = decompressesReader[:n]
-
-			if !bytes.Equal(decompressesReader, decompressed) {
-				t.Errorf("Huffman.Decompress():\n%v\nHuffmanDecoder.Read():\n%v\n", decompressed, decompressesReader)
 			}
 
 			if len(compressed) != 0 && len(decompressed) == 0 {

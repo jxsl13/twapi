@@ -2,6 +2,7 @@ package compression
 
 import (
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -34,47 +35,49 @@ func (he *HuffmanEncoder) Write(p []byte) (n int, err error) {
 }
 
 // NewHuffmanDecoder creates a HuffmanDecoder that can read Huffman encoded data and write it to the passed
-// buffer io.Writer. The buffer should be a io.ReadWriter in order to retrieve the decompressed data from it.
-// frequencies should not be passed unless you know what you do.
-func NewHuffmanDecoder(buffer io.Writer, frequencies ...[]uint) *HuffmanDecoder {
+// reads compressed data from the buffer and decompresses is into the p byte slice passed to the Read method.
+func NewHuffmanDecoder(buffer io.Reader, frequencies ...[]uint) *HuffmanDecoder {
 	return &HuffmanDecoder{
 		h: NewHuffman(frequencies...),
-		w: buffer,
+		r: buffer,
 	}
 }
 
 type HuffmanDecoder struct {
 	h *Huffman
-	w io.Writer
+	r io.Reader
 }
 
 func (hd *HuffmanDecoder) Read(p []byte) (n int, err error) {
-	decompressed := make([]byte, 0, len(p)*2)
 
-	dataSize := len(p)
-	srcIndex := 0
-
-	for srcIndex < dataSize {
-		// stack allocated buffer
-		bufferArray := [2048]byte{}
-		buffer := bufferArray[:]
-
-		// slowly moving forward
-		src := p[srcIndex:]
-
-		// decompressing still compressed data into the buffer
-		decompSize := hd.h.Decompress(src, len(src), &buffer, cap(buffer))
-		if decompSize < 0 {
-			return -1, errors.New("failed to decompress")
-		}
-
-		// add decompressed size to index
-		srcIndex += decompSize
-		// add decompressed data to the global heap allocated buffer
-		decompressed = append(decompressed, buffer...)
+	if len(p) == 0 {
+		return 0, nil
 	}
 
-	return hd.w.Write(decompressed)
+	bufferArray := [1]byte{0}
+	buffer := bufferArray[:]
+
+	idx := 0
+	for ; idx+1 < len(p); idx++ {
+		n, err := hd.r.Read(buffer)
+		if err != nil {
+			// return length and EOF error
+			return idx + 1, err
+		}
+		if n != 1 {
+			return idx + 1, fmt.Errorf("invalid state, read %d bytes", n)
+		}
+
+		dst := p[idx : idx+1]
+
+		// decompress 1 byte
+		l := hd.h.Decompress(buffer, len(buffer), &dst, len(dst))
+		if l != 1 {
+			return idx + 1, fmt.Errorf("invalid state, decompress %d bytes", l)
+		}
+
+	}
+	return idx + 1, nil
 }
 
 type Node struct {

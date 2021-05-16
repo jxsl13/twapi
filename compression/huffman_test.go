@@ -3,6 +3,7 @@ package compression
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"testing"
 )
 
@@ -86,26 +87,61 @@ func swap(arr []*huffmanConstructNode, i, k int) {
 }
 
 func TestHuffman_Compress_Decompress(t *testing.T) {
-	huffman := Huffman{}
-	huffman.Init(nil)
+	huffman := NewHuffman()
 
-	tests := []struct {
+	decodedBuffer := bytes.NewBuffer(nil)
+	huffmanDecoder := NewHuffmanDecoder(decodedBuffer)
+
+	encodedBuffer := bytes.NewBuffer(nil)
+	huffmanEncoder := NewHuffmanEncoder(encodedBuffer)
+
+	type test struct {
 		name    string
 		input   []byte
 		wantErr bool
-	}{
+	}
+
+	tests := []test{
 		{"#1", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, false},
+	}
+
+	// generate random data
+	for i := 0; i < 100000; i++ {
+		length := rand.Intn(10000)
+		data := make([]byte, 0, length)
+		for range data {
+			data = append(data, byte(rand.Intn(256)))
+		}
+		tests = append(tests, test{
+			fmt.Sprintf("#%d", i+2),
+			data,
+			false,
+		})
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			defer encodedBuffer.Reset()
+			defer decodedBuffer.Reset()
+
 			compressed := make([]byte, 0, len(tt.input)*2)
 			l := huffman.Compress(tt.input, len(tt.input), &compressed, cap(compressed))
 			if l < 0 {
 				t.Error("Compress failed")
 			}
-			if len(compressed) == 0 {
+			if len(tt.input) != 0 && len(compressed) == 0 {
 				t.Error("Huffman.Compress() : Compressed length is 0")
+				return
+			}
+
+			_, err := huffmanEncoder.Write(tt.input)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			if !bytes.Equal(compressed, encodedBuffer.Bytes()) {
+				t.Errorf("Huffman.Compress():\n%v\nHuffmanEncoder.Write():\n%v\n", compressed, encodedBuffer.Bytes())
 				return
 			}
 
@@ -114,7 +150,19 @@ func TestHuffman_Compress_Decompress(t *testing.T) {
 			if l < 0 {
 				t.Error("Decompress failed")
 			}
-			if len(decompressed) == 0 {
+
+			_, err = huffmanDecoder.Read(encodedBuffer.Bytes())
+			if err != nil {
+				t.Error(err)
+				t.Errorf("%v", encodedBuffer.Bytes())
+				return
+			}
+
+			if !bytes.Equal(decodedBuffer.Bytes(), decompressed) {
+				t.Errorf("Huffman.Decompress():\n%v\nHuffmanDecoder.Read():\n%v\n", decompressed, decodedBuffer.Bytes())
+			}
+
+			if len(compressed) != 0 && len(decompressed) == 0 {
 				t.Error("Huffman.Decompress() : Decompressed length is 0")
 				return
 			}

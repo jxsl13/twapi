@@ -1,6 +1,81 @@
 package compression
 
-import "errors"
+import (
+	"errors"
+	"io"
+)
+
+// NewHuffmanEncodercreates a new encoder that writes its compressed data into the passed buffer
+// buffer should be an io.ReadWriter in order to retrieve the data from that struct and to further process it.
+// frequencies, by default, should not be touched, but you can change them in case you know what you do.
+func NewHuffmanEncoder(buffer io.Writer, frequencies ...[]uint) *HuffmanEncoder {
+	return &HuffmanEncoder{
+		h: NewHuffman(frequencies...),
+		w: buffer,
+	}
+}
+
+// HuffmanEncoder is used to encode data the Teeworlds Huffman way.
+type HuffmanEncoder struct {
+	h *Huffman
+	w io.Writer
+}
+
+func (he *HuffmanEncoder) Write(p []byte) (n int, err error) {
+	// info: could be improved with a stack allocated chunk buffer
+	compressed := make([]byte, 0, len(p)*2)
+
+	size := he.h.Compress(p, len(p), &compressed, cap(compressed))
+	if size < 0 {
+		return -1, errors.New("failed to compress")
+	}
+
+	return he.w.Write(compressed)
+}
+
+// NewHuffmanDecoder creates a HuffmanDecoder that can read Huffman encoded data and write it to the passed
+// buffer io.Writer. The buffer should be a io.ReadWriter in order to retrieve the decompressed data from it.
+// frequencies should not be passed unless you know what you do.
+func NewHuffmanDecoder(buffer io.Writer, frequencies ...[]uint) *HuffmanDecoder {
+	return &HuffmanDecoder{
+		h: NewHuffman(frequencies...),
+		w: buffer,
+	}
+}
+
+type HuffmanDecoder struct {
+	h *Huffman
+	w io.Writer
+}
+
+func (hd *HuffmanDecoder) Read(p []byte) (n int, err error) {
+	decompressed := make([]byte, 0, len(p)*2)
+
+	dataSize := len(p)
+	srcIndex := 0
+
+	for srcIndex < dataSize {
+		// stack allocated buffer
+		bufferArray := [2048]byte{}
+		buffer := bufferArray[:]
+
+		// slowly moving forward
+		src := p[srcIndex:]
+
+		// decompressing still compressed data into the buffer
+		decompSize := hd.h.Decompress(src, len(src), &buffer, cap(buffer))
+		if decompSize < 0 {
+			return -1, errors.New("failed to decompress")
+		}
+
+		// add decompressed size to index
+		srcIndex += decompSize
+		// add decompressed data to the global heap allocated buffer
+		decompressed = append(decompressed, buffer...)
+	}
+
+	return hd.w.Write(decompressed)
+}
 
 type Node struct {
 	// symbol
@@ -17,6 +92,29 @@ type Node struct {
 type huffmanConstructNode struct {
 	NodeID    uint
 	Frequency uint
+}
+
+// NewHuffman creates a new compressor that can compress and decompress  data
+// by default you do not need to provide and frequencies, as there is an internally
+// used default value.
+func NewHuffman(frequencies ...[]uint) *Huffman {
+	h := &Huffman{}
+
+	if len(frequencies) == 0 {
+		h.Reset(nil)
+	} else {
+		size := 0
+		for _, f := range frequencies {
+			size += len(f)
+		}
+		freq := make([]uint, 0, size)
+		for _, f := range frequencies {
+			freq = append(freq, f...)
+		}
+		h.Reset(freq)
+	}
+
+	return h
 }
 
 type Huffman struct {
@@ -93,7 +191,7 @@ func (h *Huffman) memZero() {
 	h.NumNodes = 0
 }
 
-func (h *Huffman) Init(frequencies []uint) {
+func (h *Huffman) Reset(frequencies []uint) {
 	// make sure to cleanout every thing
 	h.memZero()
 
@@ -135,6 +233,10 @@ func (h *Huffman) Compress(input []byte, inputSize int, output *[]byte, outputSi
 		*output = (*output)[:outputSize]
 	} else {
 		(*output) = (*output)[:cap(*output)]
+	}
+
+	if len(input) == 0 || inputSize == 0 || len(*output) == 0 || outputSize == 0 {
+		return 0
 	}
 
 	// setup buffer pointers
@@ -220,6 +322,10 @@ func (h *Huffman) Decompress(input []byte, inputSize int, output *[]byte, output
 		(*output) = (*output)[:cap(*output)]
 	}
 
+	if len(input) == 0 || inputSize == 0 || len(*output) == 0 || outputSize == 0 {
+		return 0
+	}
+
 	// setup buffer pointers
 	pSrc := 0
 	pSrcEnd := inputSize
@@ -303,5 +409,5 @@ func (h *Huffman) Decompress(input []byte, inputSize int, output *[]byte, output
 	(*output) = (*output)[:pDst]
 
 	// return the size of the decompressed buffer
-	return pDst
+	return pDst + 1
 }

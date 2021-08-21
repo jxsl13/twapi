@@ -25,8 +25,8 @@ const (
 	NetPacketHeaderSizeConnless = NetPacketHeaderSize + 2
 	NetMaxPacketHeaderSize      = NetPacketHeaderSizeConnless
 	//
-	NetMaxPacketsize = 1400
-	NetMaxPayload    = NetMaxPacketsize - NetMaxPacketHeaderSize
+	NetMaxPacketSize = 1400
+	NetMaxPayload    = NetMaxPacketSize - NetMaxPacketHeaderSize
 
 	NetPacketversion = 1
 
@@ -52,10 +52,10 @@ const (
 )
 
 const (
-	NetTokenFlagAllowbroadcast = 1
-	NetTokenFlagResponseonly   = 2
+	NetTokenFlagAllowBroadcast = 1
+	NetTokenFlagResponseOnly   = 2
 
-	NetTokenRequestDatasize = 512
+	NetTokenRequestDataSize = 512
 
 	NetMaxClients        = 64
 	NetMaxConsoleClients = 4

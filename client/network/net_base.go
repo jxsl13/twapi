@@ -1,6 +1,11 @@
 package network
 
-import "net"
+import (
+	"net"
+
+	"github.com/jxsl13/twapi/compression"
+	"inet.af/netaddr"
+)
 
 var (
 	netInitializer = NewNetInitializer()
@@ -14,37 +19,24 @@ func NewNetInitializer() NetInitializer {
 }
 
 type NetBase struct {
-	Socket net.UDPConn
+	socket          net.UDPConn
+	huffman         compression.Huffman
+	requestTokenBuf [NetTokenRequestDataSize]byte
 }
 
-// TODO: Continue here when huffman is ready.
-/**
-class CNetBase
-{
+func (nb *NetBase) SendControlMsg(address netaddr.IPPort, token Token, Ack int, ControlMsg int, pExtra []byte, ExtraSize int) {
 
-	NETSOCKET m_Socket;
-	IOHANDLE m_DataLogSent;
-	IOHANDLE m_DataLogRecv;
-	CHuffman m_Huffman;
-	unsigned char m_aRequestTokenBuf[NET_TOKENREQUEST_DATASIZE];
+}
 
-public:
-	CNetBase();
-	~CNetBase();
-	CConfig *Config() { return m_pConfig; }
-	class IEngine *Engine() { return m_pEngine; }
-	int NetType() { return m_Socket.type; }
+func (nb *NetBase) SendControlMsgWithToken(address netaddr.IPPort, token Token, Ack, ControlMsg int, MyToken Token, Extended bool) {
 
-	void Init(NETSOCKET Socket, class CConfig *pConfig, class IConsole *pConsole, class IEngine *pEngine);
-	void Shutdown();
-	void UpdateLogHandles();
-	void Wait(int Time);
+}
+func (nb *NetBase) SendPacketConnless(address netaddr.IPPort, token Token, responseToken Token, pData []byte, DataSize int) {
 
-	void SendControlMsg(const NETADDR *pAddr, TOKEN Token, int Ack, int ControlMsg, const void *pExtra, int ExtraSize);
-	void SendControlMsgWithToken(const NETADDR *pAddr, TOKEN Token, int Ack, int ControlMsg, TOKEN MyToken, bool Extended);
-	void SendPacketConnless(const NETADDR *pAddr, TOKEN Token, TOKEN ResponseToken, const void *pData, int DataSize);
-	void SendPacket(const NETADDR *pAddr, CNetPacketConstruct *pPacket);
-	int UnpackPacket(NETADDR *pAddr, unsigned char *pBuffer, CNetPacketConstruct *pPacket);
-};
+}
+func (nb *NetBase) SendPacket(address netaddr.IPPort, pPacket *NetPacketConstruct) {
 
-*/
+}
+func (nb *NetBase) UnpackPacket(address netaddr.IPPort, pBuffer []byte, pPacket *NetPacketConstruct) int {
+	return 0
+}

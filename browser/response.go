@@ -27,7 +27,7 @@ func (rp *ResponsePacket) UnmarshalBinary(data []byte) error {
 	if len(data) == tokenResponseSize {
 		rp.Token.UnmarshalBinary(data)
 		rp.ResponseHeader = "token"
-		rp.Payload = make([]byte, 0, 0)
+		rp.Payload = make([]byte, 0)
 	}
 
 	// parse token prefix

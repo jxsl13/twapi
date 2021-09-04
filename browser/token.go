@@ -1,20 +1,20 @@
 package browser
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/rand"
 	"time"
 )
 
 // NewTokenRequestPacket generates a new token request packet that can be
 // used to request for a new server token
 func NewTokenRequestPacket() []byte {
-	seedSource := rand.NewSource(time.Now().UnixNano())
-	randomNumberGenerator := rand.New(seedSource)
+
+	n, _ := rand.Read(nil)
 
 	t := Token{
 		ServerToken: -1,
-		ClientToken: int(randomNumberGenerator.Int31()),
+		ClientToken: n,
 	}
 
 	header, _ := t.MarshalBinary()

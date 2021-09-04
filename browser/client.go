@@ -1,367 +1,334 @@
 package browser
 
 import (
-	"bytes"
-	"io"
-	"math"
 	"net"
 	"sync"
 	"time"
 )
 
-// RequestToken writes the payload to w
-func RequestToken(w io.Writer) (err error) {
-	tokenReq := NewTokenRequestPacket()
-	n, err := w.Write(tokenReq)
-	if err != nil {
-		return
-	} else if n != len(tokenReq) {
-		err = ErrInvalidWrite
+func newClient() (*Client, error) {
+	c := &Client{
+		tokenCache: newTokenCache(),
 	}
 
-	return
-}
-
-// ReceiveToken reads the token payload from the reader r
-func ReceiveToken(r io.Reader) (response []byte, err error) {
-	response = make([]byte, tokenResponseSize)
-	read, err := r.Read(response)
+	var err error
+	c.conn, err = net.ListenUDP("udp", nil)
 	if err != nil {
 		return nil, err
 	}
 
-	if read != tokenResponseSize {
-		err = ErrInvalidResponseMessage
-	}
-
-	return response[:read], err
-}
-
-// FetchToken tries to fetch a token from the server for a specific duration at most. a timeout below 35 ms will be set to 35 ms
-func FetchToken(rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
-	if timeout < minTimeout {
-		timeout = minTimeout
-	}
-
-	begin := time.Now()
-	timeLeft := timeout
-	currentTimeout := minTimeout
-	writeBurst := 1.0
-
-	for {
-		timeLeft = timeout - time.Since(begin)
-		rwd.SetReadDeadline(time.Now().Add(currentTimeout))
-
-		if timeLeft <= 0 {
-			// early return, because timed out
-			err = ErrTimeout
-			return
-		}
-
-		// send multiple requests
-		for i := 0.0; i < writeBurst; i += 1.0 {
-			err = RequestToken(rwd)
-			if err != nil {
-				return
-			}
-		}
-
-		// wait for response
-		response, err = ReceiveToken(rwd)
-		if err == nil {
-			return
-		}
-
-		// increase time & request burst
-		timeLeft = timeout - time.Since(begin)
-		if timeLeft <= currentTimeout {
-			currentTimeout = timeLeft
-		} else {
-			currentTimeout *= 2
-		}
-		writeBurst *= 1.2
-	}
-}
-
-// Request writes the payload into w.
-// w can be a buffer or a udp connection
-// packet can be one of:
-//		"serverlist"
-//		"servercount"
-//		"serverinfo"
-func Request(packet string, token Token, w io.Writer) (err error) {
-	var payload []byte
-	switch packet {
-	case "serverlist":
-		payload, err = NewServerListRequestPacket(token)
-	case "servercount":
-		payload, err = NewServerCountRequestPacket(token)
-	case "serverinfo":
-		payload, err = NewServerInfoRequestPacket(token)
-	}
+	err = c.SetReadBuffer(maxBufferSize * maxChunks)
 	if err != nil {
-		return
+		defer c.conn.Close()
+		return nil, err
 	}
 
-	n, err := w.Write(payload)
+	err = c.SetWriteBuffer(maxBufferSize)
 	if err != nil {
-		return
-	} else if n != len(payload) {
-		err = ErrInvalidWrite
+		defer c.conn.Close()
+		return nil, err
 	}
-	return
+
+	c.SetReadTimeout(TokenExpirationDuration)
+	c.SetWriteTimeout(100 * time.Millisecond)
+	return c, nil
 }
 
-// Receive reads the response message and evaluates its validity.
-// If the message is not valid it is still returned.
-func Receive(packet string, r io.Reader) (response []byte, err error) {
-	response = make([]byte, maxBufferSize)
+// NewClient creates a new browser client that can fetch the number of registered servers,
+func NewClient(address string) (*Client, error) {
+	c, err := newClient()
+	if err != nil {
+		return nil, err
+	}
+	err = c.SetTarget(address)
+	if err != nil {
+		defer c.Close()
+		return nil, err
+	}
+	return c, nil
+}
 
-	read, err := r.Read(response)
+// Client is a browser client tha can fetch master server infos and server infos of game servers
+type Client struct {
+	conn         *net.UDPConn
+	target       *net.UDPAddr
+	readTimeout  time.Duration
+	writeTimeout time.Duration
+	tokenCache   *tokenCache
+
+	mu sync.Mutex
+}
+
+func (c *Client) SetTarget(address string) error {
+
+	addr, err := parseAddress(address)
+	if err != nil {
+		return err
+	}
+
+	c.setTarget(addr)
+	return nil
+}
+
+func (c *Client) setTarget(address *net.UDPAddr) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.target = address
+}
+
+func (c *Client) SetReadTimeout(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.readTimeout = d
+}
+
+func (c *Client) SetWriteTimeout(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.writeTimeout = d
+}
+
+func (c *Client) SetReadBuffer(bytes int) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.conn.SetReadBuffer(bytes)
+}
+
+func (c *Client) SetWriteBuffer(bytes int) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.conn.SetWriteBuffer(bytes)
+}
+
+func (c *Client) Close() error {
+	return c.conn.Close()
+}
+
+// tries to write all of the data provided
+func (c *Client) write(data []byte) (int, error) {
+	return c.writeToUDP(data, c.target)
+}
+
+// tries to write all of the data provided
+func (c *Client) writeToUDP(data []byte, addr *net.UDPAddr) (int, error) {
+	expected := len(data)
+	written := 0
+	for written < expected {
+		err := c.conn.SetWriteDeadline(time.Now().Add(c.writeTimeout))
+		if err != nil {
+			return -1, err
+		}
+		i, err := c.conn.WriteToUDP(data, addr)
+		if err != nil {
+			return written, err
+		}
+		written += i
+	}
+	return written, nil
+}
+
+func (c *Client) read(data []byte) (int, error) {
+	err := c.conn.SetReadDeadline(time.Now().Add(c.readTimeout))
+	if err != nil {
+		return 0, err
+	}
+	return c.conn.Read(data)
+}
+
+func (c *Client) readFromUDP(data []byte) (int, *net.UDPAddr, error) {
+	err := c.conn.SetReadDeadline(time.Now().Add(c.readTimeout))
+	if err != nil {
+		return 0, nil, err
+	}
+	return c.conn.ReadFromUDP(data)
+}
+
+// unguarded variant
+func (c *Client) getToken() (*Token, error) {
+	addr := c.target.String()
+	// no need to refresh token if it has not yet expired
+	if !c.tokenCache.Get(addr).Expired() {
+		return c.tokenCache.Get(addr), nil
+	}
+	// TODO: check if we need to process the number of written bytes
+	_, err := c.write(NewTokenRequestPacket())
+	if err != nil {
+		return nil, err
+	}
+	buffer := [maxBufferSize]byte{}
+	response := buffer[:]
+	i, err := c.read(response)
+	if err != nil {
+		return nil, err
+	}
+	response = response[:i] // shorten slice to only contain read bytes
+
+	token := &Token{}
+	err = token.UnmarshalBinary(response)
 	if err != nil {
 		return nil, err
 	}
 
-	response = response[:read]
+	c.tokenCache.Add(addr, token)
+	return token, nil
+}
 
-	if read == 0 {
-		return response, ErrInvalidResponseMessage
+// GetToken returns a client/server token that secures the connection against IP spoofing
+func (c *Client) GetToken() (*Token, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.getToken()
+}
+
+// request creates the request payload
+func (c *Client) request(header string) ([]byte, error) {
+	// refresh token if not expired
+	token, err := c.getToken()
+	if err != nil {
+		return nil, err
 	}
-
-	match, err := MatchResponse(response)
+	req := RequestPacket{
+		Token:  *token,
+		Header: header,
+	}
+	body, err := req.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
 
-	if match != packet {
-		err = ErrRequestResponseMismatch
-	}
-	return response, err
+	return body, nil
 }
 
-// FetchWithToken is the same as Fetch, but it retries fetching data for a specific time.
-func FetchWithToken(packet string, token Token, rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
-	if timeout < minTimeout {
-		timeout = minTimeout
+// send request and receive a single chunk with the response
+func (c *Client) get(header string) (*ResponsePacket, error) {
+	request, err := c.request(header)
+	if err != nil {
+		return nil, err
+	}
+	_, err = c.write(request)
+	if err != nil {
+		return nil, err
+	}
+	buffer := [maxBufferSize]byte{}
+	response := buffer[:]
+	i, err := c.read(response)
+	if err != nil {
+		return nil, err
+	}
+	data := response[:i]
+
+	resp := &ResponsePacket{}
+	err = resp.UnmarshalBinary(data)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// GetServerCount returns the number of registered servers for the current master server
+func (c *Client) GetServerCount() (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.getServerCount()
+}
+
+func (c *Client) getServerCount() (int, error) {
+	resp, err := c.get(RequestServerCount)
+	if err != nil {
+		return -1, err
+	}
+	i, err := parseServerCount(resp.Payload)
+	if err != nil {
+		return -1, err
+	}
+	return i, nil
+}
+
+// GetServerAddresses returns a list of server addresses from the underlying master server
+func (c *Client) GetServerAddresses() ([]*net.UDPAddr, error) {
+	c.mu.Lock()
+	list, err := c.getServerAddresses()
+	c.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	// cleanup duplicate, most likely ipv4&ipv6 addresses
+	set := make(map[string]*net.UDPAddr, len(list))
+	for _, addr := range list {
+		set[addr.String()] = addr
+	}
+	list = list[:0] // reset list
+	for _, addr := range set {
+		list = append(list, addr)
+	}
+	return list, nil
+}
+
+func (c *Client) getServerAddresses() ([]*net.UDPAddr, error) {
+	expectedServers, err := c.getServerCount()
+	if err != nil {
+		return nil, err
+	}
+	expectedChunks := expectedServers / maxServersPerChunk
+	if expectedServers%maxServersPerChunk > 0 {
+		expectedChunks += 1
 	}
 
-	begin := time.Now()
-	timeLeft := timeout
-	currentTimeout := minTimeout
-	writeBurst := 1
+	result := make([]*net.UDPAddr, 0, expectedServers)
 
-	for {
-		timeLeft = timeout - time.Since(begin)
-		rwd.SetReadDeadline(time.Now().Add(currentTimeout))
+	request, err := c.request(RequestServerList)
+	if err != nil {
+		return nil, err
+	}
+	_, err = c.write(request)
+	if err != nil {
+		return nil, err
+	}
+	// we expect 75 addresses per chunk, thus we expect multiple chunks of data
+	// that we wanna parse
+	buffer := [maxBufferSize]byte{}
+	for i := 0; i < expectedChunks; i++ {
+		response := buffer[:]
+		i, err := c.read(response)
+		if err != nil {
+			return nil, err
+		}
+		data := response[:i]
 
-		if timeLeft <= 0 {
-			// early return, because timed out
-			err = ErrTimeout
-			return
+		resp := ResponsePacket{}
+		err = resp.UnmarshalBinary(data)
+		if err != nil {
+			return nil, err
 		}
 
-		// send multiple requests
-		for i := 0; i < writeBurst; i++ {
-			err = Request(packet, token, rwd)
-			if err != nil {
-				return
-			}
+		list, err := parseServerList(resp.Payload)
+		if err != nil {
+			return nil, err
 		}
-
-		// wait for response
-		response, err = Receive(packet, rwd)
-		if err == nil {
-			return
-		}
-
-		// increase time & request burst
-		timeLeft = timeout - time.Since(begin)
-		if timeLeft <= currentTimeout {
-			currentTimeout = timeLeft
-		} else {
-			currentTimeout *= 2
-		}
-		writeBurst *= 2
+		result = append(result, list...)
 	}
+
+	return result, nil
 }
 
-// MatchResponse matches a respnse to a specific string
-// "", ErrInvalidResponseMessage -> if response message contains invalid data
-// "", ErrInvalidHeaderLength -> if response message is too short
-// "token" - token response
-// "serverlist" - server list response
-// "servercount" - server count response
-// "serverinfo" - server info response
-func MatchResponse(responseMessage []byte) (string, error) {
-	if len(responseMessage) < minPrefixLength {
-		return "", ErrInvalidHeaderLength
-	}
-
-	if len(responseMessage) == tokenResponseSize {
-		return "token", nil
-	} else if bytes.Equal(sendServerListRaw, responseMessage[tokenPrefixSize:tokenPrefixSize+len(sendServerListRaw)]) {
-		return "serverlist", nil
-	} else if bytes.Equal(sendServerCountRaw, responseMessage[tokenPrefixSize:tokenPrefixSize+len(sendServerCountRaw)]) {
-		return "servercount", nil
-	} else if bytes.Equal(sendInfoRaw, responseMessage[tokenPrefixSize:tokenPrefixSize+len(sendInfoRaw)]) {
-		return "serverinfo", nil
-	}
-	return "", ErrInvalidResponseMessage
-}
-
-// Fetch sends the token, retrieves the response and sends the follow up packet request in order to receive the data response.
-func Fetch(packet string, rwd ReadWriteDeadliner, timeout time.Duration) (response []byte, err error) {
-	begin := time.Now()
-	resp, err := FetchToken(rwd, timeout)
+func (c *Client) getServerInfo() (*ServerInfo, error) {
+	resp, err := c.get(RequestInfo)
 	if err != nil {
-		return
+		return nil, err
 	}
-	token, err := ParseToken(resp)
+
+	info, err := parseServerInfo(resp.Payload, c.target.String())
 	if err != nil {
-		return
-	}
-	timeLeft := timeout - time.Since(begin)
-	resp, err = FetchWithToken(packet, token, rwd, timeLeft)
-	if err != nil {
-		return
-	}
-
-	response = resp
-	return
-}
-
-// ServerInfos is a wrapper for ServerInfosWithTimeouts with prefedined parameters that have been deemed to work
-// with a rather low packet loss, but still being rather small.
-func ServerInfos() (infos []ServerInfo) {
-	return ServerInfosWithTimeouts(TimeoutMasterServers, TimeoutServers)
-}
-
-// GetServerInfoWithTimeout fetches the server info from the passed address
-// if the timeout is less than 60ms the default if 60ms is used.
-// 60ms has been tested to be the lowest sane response time to get the server info.
-func GetServerInfoWithTimeout(ip string, port int, timeout time.Duration) (ServerInfo, error) {
-	info := ServerInfo{}
-
-	ipAddr := net.ParseIP(ip)
-
-	if ipAddr == nil {
-		return info, ErrInvalidIP
-	}
-
-	if port < 0 || math.MaxUint16 < port {
-		return info, ErrInvalidPort
-	}
-
-	if timeout < minTimeout {
-		timeout = minTimeout
-	}
-
-	srv := &net.UDPAddr{
-		IP:   ipAddr,
-		Port: port,
-	}
-
-	conn, err := net.DialUDP("udp", nil, srv)
-	if err != nil {
-		return info, err
-	}
-	defer conn.Close()
-
-	// increase buffers for writing and reading
-	conn.SetReadBuffer(maxBufferSize)
-	conn.SetWriteBuffer(int(maxBufferSize * timeout.Seconds()))
-
-	resp, err := Fetch("serverinfo", conn, timeout)
-	if err != nil {
-		return info, err
-	}
-
-	info, err = ParseServerInfo(resp, srv.String())
-	if err != nil {
-		return info, err
+		return nil, err
 	}
 
 	return info, nil
 }
 
-// GetServerInfo fetches the server info of a given ip and port.
-// it timeouts after about 16 seconds. If a smaller timeout and response time is needed, please use
-// GetServerInfoWithTimeout() instead. 
-func GetServerInfo(ip string, port int) (ServerInfo, error) {
-	return GetServerInfoWithTimeout(ip, port, TimeoutServers)
-}
-
-// ServerInfosWithTimeouts retrieves the full serverlist with all of the server's infos from the masterservers as well as the individual servers
-// it is possible to set the masterserver and the per server timeouts manually.
-func ServerInfosWithTimeouts(timeoutMasterServer, timeoutServer time.Duration) (infos []ServerInfo) {
-	cm := NewConcurrentMap(512)
-
-	var wg sync.WaitGroup
-	wg.Add(len(MasterServerAddresses))
-
-	for _, ms := range MasterServerAddresses {
-		ms := ms
-		go fetchServersFromMasterServerAddress(ms, timeoutMasterServer, timeoutServer, &cm, &wg)
-	}
-
-	wg.Wait()
-
-	infos = cm.Values()
-	return
-}
-
-func fetchServersFromMasterServerAddress(ms *net.UDPAddr, timeoutMasterServer, timeoutServer time.Duration, cm *ConcurrentMap, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	conn, err := net.DialUDP("udp", nil, ms)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-	conn.SetWriteBuffer(maxBufferSize * maxChunks)
-
-	resp, err := Fetch("serverlist", conn, timeoutMasterServer)
-	if err != nil {
-		return
-	}
-
-	servers, err := ParseServerList(resp)
-	if err != nil {
-		return
-	}
-
-	var infoWaiter sync.WaitGroup
-
-	infoWaiter.Add(len(servers))
-	for _, s := range servers {
-		s := s
-		go fetchServerInfoFromServerAddress(s, timeoutServer, cm, &infoWaiter)
-	}
-	infoWaiter.Wait()
-}
-
-func fetchServerInfoFromServerAddress(srv *net.UDPAddr, timeout time.Duration, cm *ConcurrentMap, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	conn, err := net.DialUDP("udp", nil, srv)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	// increase buffers for writing and reading
-	conn.SetReadBuffer(maxBufferSize)
-	conn.SetWriteBuffer(int(maxBufferSize * timeout.Seconds()))
-
-	resp, err := Fetch("serverinfo", conn, timeout)
-	if err != nil {
-		return
-	}
-
-	info, err := ParseServerInfo(resp, srv.String())
-	if err != nil {
-		return
-	}
-
-	cm.Add(info, 0)
+// GetServerInfo returns the server info of a game server. This function requires the target to be set to a
+// game server address
+func (c *Client) GetServerInfo() (*ServerInfo, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.getServerInfo()
 }

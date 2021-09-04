@@ -1,225 +1,120 @@
-package browser
+package browser_test
 
 import (
-	"errors"
-	"fmt"
+	"encoding/json"
 	"net"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/jxsl13/twapi/browser"
 )
 
-type asyncCounter int64
+var (
+	SimplyzCatch = "89.163.148.121:8305"
+	MasterServer = "master1.teeworlds.com:8283"
+)
 
-func (ac *asyncCounter) Inc() {
-	atomic.AddInt64((*int64)(ac), 1)
+func init() {
+	browser.Logging = true
 }
 
-func (ac *asyncCounter) String() string {
-	value := atomic.LoadInt64((*int64)(ac))
-	return fmt.Sprintf("%d", value)
+func TestClient_GetToken(t *testing.T) {
+	c, err := browser.NewClient(MasterServer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	start := time.Now()
+	token, err := c.GetToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	diff := time.Since(start)
+	t.Logf("First fetching: %d millis", diff.Milliseconds())
+
+	b, err := json.MarshalIndent(token, "", " ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("Token: %s", string(b))
+
+	start = time.Now()
+	token, err = c.GetToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	diff = time.Since(start)
+	t.Logf("Second fetching: %d millis", diff.Microseconds())
+	b, err = json.MarshalIndent(token, "", " ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("Token2: %s", string(b))
+
 }
 
-func getServerInfo(addr *net.UDPAddr, t *testing.T, wg *sync.WaitGroup, cnt *asyncCounter) {
-	defer wg.Done()
-
-	t.Logf("\n\nServer: %s", addr.String())
-
-	conn, err := net.DialUDP("udp", nil, addr)
+func TestClient_GetServerCount(t *testing.T) {
+	c, err := browser.NewClient(MasterServer)
 	if err != nil {
-		t.Logf("connection to server failed: %v", err)
-		return
+		t.Fatal(err)
 	}
-	defer conn.Close()
+	defer c.Close()
 
-	resp, err := FetchToken(conn, 5*time.Second)
+	i, err := c.GetServerCount()
 	if err != nil {
-		t.Log(err)
-		return
+		t.Fatal(err)
 	}
 
-	token, err := ParseToken(resp)
-
-	if err != nil {
-		t.Error(err)
-		return
+	if i <= 0 {
+		t.Fatal("<= 0 server count from master servers")
+	} else {
+		t.Logf("%s has %d registered servers", MasterServer, i)
 	}
 
-	resp, err = FetchWithToken("serverinfo", token, conn, 10*time.Second)
+}
+
+func TestClient_GetServerAddresses(t *testing.T) {
+	c, err := browser.NewClient(MasterServer)
 	if err != nil {
-		t.Log(err)
-		return
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	list, err := c.GetServerAddresses()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	info, err := ParseServerInfo(resp, addr.String())
-	if err != nil {
-		if errors.Is(err, ErrMalformedResponseData) {
-			t.Log(err)
-		} else {
-			t.Error(err)
+	set := map[string]*net.UDPAddr{}
+	for _, addr := range list {
+		old, ok := set[addr.String()]
+		if ok {
+			t.Errorf("Duplicate server old: %v new: %v", old.IP, addr.IP)
 		}
-		return
+		set[addr.String()] = addr
 	}
 
-	t.Logf("%s\n\n", info.String())
-	cnt.Inc()
-
-}
-
-func TestFetchWithTokenServerListAndInfo(t *testing.T) {
-	addr, err := net.ResolveUDPAddr("udp", "master1.teeworlds.com:8283")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	conn, err := net.DialUDP("udp", nil, addr)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-
-	var resp []byte
-	resp, err = FetchToken(conn, 5*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var token Token
-	token, err = ParseToken(resp)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resp, err = FetchWithToken("serverlist", token, conn, 5*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	serverList, err := ParseServerList(resp)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var cnt asyncCounter
-	wg := sync.WaitGroup{}
-	wg.Add(len(serverList))
-
-	for _, s := range serverList {
-		s := s
-		go getServerInfo(s, t, &wg, &cnt)
-	}
-
-	wg.Wait()
-	t.Logf("Server Infos retrieved: %s/%d", cnt.String(), len(serverList))
-}
-
-func TestFetchWithTokenServerCount(t *testing.T) {
-	addr, err := net.ResolveUDPAddr("udp", "master4.teeworlds.com:8283")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	conn, err := net.DialUDP("udp", nil, addr)
-
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-
-	var resp []byte
-	resp, err = FetchToken(conn, 5*time.Second)
-	if err != nil {
-		if errors.Is(err, ErrTimeout) {
-			t.Log(err) // timeout is not a failure condition
-			return
-		}
-		t.Fatal(err)
-	}
-
-	var token Token
-	token, err = ParseToken(resp)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	resp, err = FetchWithToken("servercount", token, conn, 5*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	serverCount, err := ParseServerCount(resp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf("Servers fetched: %d", serverCount)
-}
-
-func TestServerInfos(t *testing.T) {
-
-	infos := ServerInfos()
-
-	if len(infos) == 0 {
-		t.Fatal("expected server list")
+	if len(set) != len(list) {
+		t.Fatalf("expected unique servers %d, unique servers %d", len(list), len(set))
 	}
 }
 
-func BenchmarkServerInfos(b *testing.B) {
-	ServerInfos()
+func TestClient_GetServerInfo(t *testing.T) {
+	c, err := browser.NewClient(SimplyzCatch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
 
-}
+	si, err := c.GetServerInfo()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-func TestMatchResponse(t *testing.T) {
-	type args struct {
-		responseMessage []byte
+	b, err := json.MarshalIndent(si, "", " ")
+	if err != nil {
+		t.Fatal(err)
 	}
-	tests := []struct {
-		name    string
-		args    args
-		want    string
-		wantErr bool
-	}{
-		{"invalid string", args{[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9}}, "", true},
-		{"too short payload", args{[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0}}, "", true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := MatchResponse(tt.args.responseMessage)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("MatchResponse() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("MatchResponse() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestServerInfo(t *testing.T) {
-	type args struct {
-		ip   string
-		port int
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{"zCatch server", args{"89.163.148.121", 8305}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := GetServerInfo(tt.args.ip, tt.args.port)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ServerInfo() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if got.Empty() {
-				t.Error("ServerInfo() = is empty")
-			}
-		})
-	}
+	t.Logf("ServerInfo: %s", string(b))
 }

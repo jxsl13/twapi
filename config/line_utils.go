@@ -21,10 +21,14 @@ func skipToWhitespace(data []byte) (index int) {
 	}
 	resultIndex := 0
 	for _, b := range data {
-		if b == ' ' && b != '\t' && b != '\n' && b != '\r' {
+		if b == ' ' || b == '\t' || b == '\n' || b == '\r' {
 			break
 		}
 		resultIndex++
 	}
 	return resultIndex
+}
+
+func isSpace(b byte) bool {
+	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
 }

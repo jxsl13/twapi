@@ -126,7 +126,6 @@ outer:
 
 		j := i + skipWhitespace(data[i:])
 		cmdStart = j
-		isStr := false
 
 		for j < len(data) {
 			c := data[j]
@@ -139,7 +138,6 @@ outer:
 					} else {
 						cmdEnd = j
 						j++
-						isStr = true
 						break
 					}
 
@@ -147,24 +145,29 @@ outer:
 					instr ^= 1
 				}
 			} else if instr == 0 {
+				// no initial quote found
 				if c == ';' {
 					// command separator
 					j++
 				} else if c == '#' {
 					// comment, no need to do anything more
 					break outer
+				} else if !isSpace(c) {
+					// no initial quotes & word start
+					j = j + skipToWhitespace(data[j:])
+					cmdEnd = j
+					break
 				}
 			}
 			j++
 			cmdEnd = j
 		}
 
-		// strings may contain whitespaces for indentations
-		arg := string(data[cmdStart:cmdEnd])
-		if !isStr {
-			arg = strings.TrimSpace(arg)
+		if cmdStart < cmdEnd {
+			arg := string(data[cmdStart:cmdEnd])
+			command.Args = append(command.Args, arg)
 		}
-		command.Args = append(command.Args, arg)
+
 		i = j + 1
 	}
 

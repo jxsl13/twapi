@@ -22,7 +22,7 @@ func TestParse(t *testing.T) {
 		t.Fatalf("parsed 0 commands")
 	}
 
-	t.Errorf("commands parsed: %d/n%s", len(c), c.String())
+	//t.Errorf("commands parsed: %d/n%s", len(c), c.String())
 }
 
 func TestParseLine(t *testing.T) {

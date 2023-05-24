@@ -43,7 +43,7 @@ func (rp *ResponsePacket) UnmarshalBinary(data []byte) error {
 	// TODO: externalize this and allow to register custom prefixes
 	offset := 0
 	for _, prefix := range ResponsePacketList {
-		if isBytePrefix(prefix, data) {
+		if bytes.HasPrefix(data, prefix) {
 			offset = len(prefix)
 			rp.ResponseHeader = string(prefix)
 			break
@@ -51,12 +51,4 @@ func (rp *ResponsePacket) UnmarshalBinary(data []byte) error {
 	}
 	rp.Payload = data[offset:]
 	return nil
-}
-
-// is prefix
-func isBytePrefix(prefix, data []byte) bool {
-	if len(data) < len(prefix) {
-		return false
-	}
-	return bytes.Equal(prefix, data[:len(prefix)])
 }

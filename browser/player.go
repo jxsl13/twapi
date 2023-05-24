@@ -1,7 +1,6 @@
 package browser
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -32,46 +31,44 @@ func (p *PlayerInfo) String() string {
 // no delimiter is appended at the end of the byte slice
 func (p *PlayerInfo) MarshalBinary() ([]byte, error) {
 
-	data := make([]byte, 0, 2*len(delimiter)+len(p.Name)+len(p.Clan)+3*5)
+	packer := compression.NewPacker(make([]byte, 0, 2+len(p.Name)+len(p.Clan)+3*5))
 
-	data = append(data, []byte(p.Name)...)
-	data = append(data, delimiter...)
+	packer.AddString(p.Name)
+	packer.AddString(p.Clan)
 
-	data = append(data, []byte(p.Clan)...)
-	data = append(data, delimiter...)
+	packer.AddInt(p.Country)
+	packer.AddInt(p.Score)
+	packer.AddInt(p.Type)
 
-	var v compression.VarInt
-	v.Pack(p.Country)
-	v.Pack(p.Score)
-	v.Pack(p.Type)
-
-	data = append(data, v.Bytes()...)
-	return data, nil
+	return packer.Bytes(), nil
 }
 
 func (p *PlayerInfo) UnmarshalBinary(data []byte) error {
-	slots := bytes.SplitN(data, delimiter, 3) // create 3 slots
-	if len(slots) != 3 {
-		return fmt.Errorf("%w : expected slots: 3 got: %d", ErrMalformedResponseData, len(slots))
+	u := compression.NewUnpacker(data)
+	var err error
+	p.Name, err = u.NextString()
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal name: %w", err)
 	}
 
-	p.Name = string(slots[0])
-	p.Clan = string(slots[1])
-	var err error
-	v := compression.NewVarIntFrom(slots[2])
-	p.Country, err = v.Unpack()
+	p.Clan, err = u.NextString()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal clan: %w", err)
 	}
-	p.Score, err = v.Unpack()
+
+	p.Country, err = u.NextInt()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal country code: %w", err)
 	}
-	p.Type, err = v.Unpack()
+	p.Score, err = u.NextInt()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal score: %w", err)
 	}
-	return nil
+	p.Type, err = u.NextInt()
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal player type: %w", err)
+	}
+	return err
 }
 
 // PlayerInfos must be pre allocated in order for the unmarshaler to know the
@@ -79,33 +76,33 @@ func (p *PlayerInfo) UnmarshalBinary(data []byte) error {
 type PlayerInfos []PlayerInfo
 
 func (pi PlayerInfos) UnmarshalBinary(data []byte) error {
-	v := compression.NewVarIntFrom(data)
+	u := compression.NewUnpacker(data)
 	var err error
 	for idx, player := range pi {
 
-		slots := bytes.SplitN(v.Bytes(), delimiter, 3) // create 3 slots
-		if len(slots) != 3 {
-			return fmt.Errorf("%w : expected slots: 3 got: %d", ErrMalformedResponseData, len(slots))
+		player.Name, err = u.NextString()
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal name: %w", err)
+		}
+		player.Clan, err = u.NextString()
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal clan: %w", err)
 		}
 
-		player.Name = string(slots[0])
-		player.Clan = string(slots[1])
-
-		v = compression.NewVarIntFrom(slots[2])
-		player.Country, err = v.Unpack()
+		player.Country, err = u.NextInt()
 		if err != nil {
 			return err
 		}
-		player.Score, err = v.Unpack()
+		player.Score, err = u.NextInt()
 		if err != nil {
 			return err
 		}
-		player.Type, err = v.Unpack()
+		player.Type, err = u.NextInt()
 		if err != nil {
 			return err
 		}
 
 		pi[idx] = player
 	}
-	return nil
+	return err
 }

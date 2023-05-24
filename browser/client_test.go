@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	SimplyzCatch = "89.163.148.121:8305"
+	SimplyzCatch = "89.163.148.121:8303"
 	MasterServer = "master1.teeworlds.com:8283"
 )
 

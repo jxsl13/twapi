@@ -1,77 +1,65 @@
 package compression
 
 import (
-	"bytes"
-	"errors"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestPackerAndUnpacker(t *testing.T) {
+	require := require.New(t)
 
-	var invalidPacker Packer
+	invalidPacker := NewPacker()
 
-	invalidPacker.Add("5")
-	invalidPacker.Add(5)
+	invalidPacker.AddString("5")
+	invalidPacker.AddInt(5)
 
-	invalidUnpacker := Unpacker{invalidPacker.Bytes()}
+	invalidUnpacker := NewUnpacker(invalidPacker.Bytes())
 
 	five, err := invalidUnpacker.NextString()
-	if five != "5" {
-		t.Fatalf("expected '5', got %s", five)
-	}
+	require.NoError(err)
+	require.Equal("5", five)
 
 	_, err = invalidUnpacker.NextString()
-	if !errors.Is(err, ErrNoStringToUnpack) {
-		t.Fatalf("expected no string error, got %s", err)
-	}
+	require.ErrorIs(err, ErrNoStringToUnpack)
 
 	intTest := 5
 	stringTest := "abcdefg"
 	bytesTest := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0}
 
-	randoNumbers := 10000000
-	seedSource := rand.NewSource(time.Now().UnixNano())
-	randomNumberGenerator := rand.New(seedSource)
-	numbers := make([]int, randoNumbers)
+	p := NewPacker()
+	p.AddInt(intTest)
+	p.AddString(stringTest)
+	p.AddBytes(bytesTest)
 
-	var p Packer
-	p.Add(intTest)
-	p.Add(stringTest)
-	p.Add(bytesTest)
-
-	u := Unpacker{p.Bytes()}
+	u := NewUnpacker(p.Bytes())
 
 	i, err := u.NextInt()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(err)
 
-	if i != intTest {
-		t.Fatalf("expected %d got %d", intTest, i)
-	}
+	require.Equal(intTest, i)
 
 	s, err := u.NextString()
-
-	if s != stringTest {
-		t.Fatalf("expected %q got %q", stringTest, s)
-	}
+	require.NoError(err)
+	require.Equal(stringTest, s)
 
 	b, err := u.NextBytes(len(bytesTest))
-
-	if !bytes.Equal(b, bytesTest) {
-		t.Fatalf("expected %q got %q", bytesTest, b)
-	}
+	require.NoError(err)
+	require.Equal(bytesTest, b)
 
 	p.Reset()
-	if p.Size() != 0 {
-		t.Fatal("expected packer size to be 0")
-	}
+	require.Zero(p.Size())
 
-	sign := 0
+	var (
+		randoNumbers          = 100_000_000
+		randomNumberGenerator = rand.New(rand.NewSource(time.Now().UnixNano()))
+		numbers               = make([]int, randoNumbers)
+	)
 
 	// generate random numbers
+	sign := 0
 	for idx := range numbers {
 
 		if idx%2 == 0 {
@@ -82,23 +70,17 @@ func TestPackerAndUnpacker(t *testing.T) {
 
 		value := sign * int(randomNumberGenerator.Int31())
 		numbers[idx] = value
-		p.Add(value)
+		p.AddInt(value)
 	}
 	b = p.Bytes()
 	u.Reset(b)
 
-	if len(b) != u.Size() {
-		t.Fatalf("size mismatch source %d unpacker %d", len(b), p.Size())
-	}
+	require.Equal(u.Size(), len(b))
 
-	for idx, number := range numbers {
+	for _, number := range numbers {
 		n, err := u.NextInt()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if n != number {
-			t.Fatalf("idx %d expected %d got %d", idx, number, n)
-		}
+		require.NoError(err)
+		require.Equal(n, number)
 	}
 
 }

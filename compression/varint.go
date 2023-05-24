@@ -1,140 +1,166 @@
 package compression
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"math"
 	"unsafe"
 )
 
-// VarInt is used to compress integers in a variable length format.
+const (
+	// max bytes that can be received for one integer
+	MaxVarintLen32 = 5
+)
+
+// PutVarint encodes an int32 into buf and returns the number of bytes written.
+// If the buffer is too small, PutVarint will panic.
 // Format: ESDDDDDD EDDDDDDD EDD... Extended, Data, Sign
 // E: is next byte part of the current integer
 // S: Sign of integer
 // Data, Integer bits that follow the sign
-type VarInt struct {
-	Compressed []byte
-}
-
-// NewVarIntFrom Bytes allows for a creation if a buffer based on a preexisting buffer
-func NewVarIntFrom(bytes []byte) VarInt {
-	return VarInt{bytes}
-}
-
-// Size returns the length of the data.
-// not its capacity
-func (v *VarInt) Size() int {
-	if v.Compressed == nil {
-		v.Clear()
-	}
-	return len(v.Compressed)
-}
-
-// Bytes returns the unread part of the underlying
-// byte slice which has not been unpacked yet.
-func (v *VarInt) Bytes() []byte {
-	if v.Compressed == nil {
-		v.Clear()
-	}
-	return v.Compressed
-}
-
-// Clear clears the internal Compressed buffer
-func (v *VarInt) Clear() {
-	v.Compressed = make([]byte, 0, maxBytesInVarInt)
-}
-
-// Grow increases size of the underlying array to fit another n elements
-func (v *VarInt) Grow(n int) {
-	if v.Compressed == nil {
-		if n < maxBytesInVarInt {
-			v.Compressed = make([]byte, 0, maxBytesInVarInt)
-		} else {
-			v.Compressed = make([]byte, 0, n)
-		}
-		return
-	}
-
-	newBuffer := make([]byte, len(v.Compressed), cap(v.Compressed)+n)
-	copy(newBuffer, v.Compressed)
-
-	v.Compressed = newBuffer
-}
-
-// Unpack the wrapped Compressed buffer
-func (v *VarInt) Unpack() (value int, err error) {
-
-	if v.Compressed == nil {
-		v.Clear()
-	}
-
-	if len(v.Compressed) == 0 {
-		err = ErrNoDataToUnpack
-		return
-	}
-
-	index := 0
-	data := v.Compressed
-
-	// handle first byte (most right side)
-	sign := int((data[index] >> 6) & 0b00000001)
-	value = int(data[index] & 0b00111111)
-
-	// handle 2nd - nth byte
-	for i := 0; i < maxBytesInVarInt-1; i++ {
-		if data[index] < 0b10000000 {
-			break
-		}
-		index++
-		value |= int(data[index]&0b01111111) << (6 + 7*i)
-	}
-
-	index++
-	value ^= -sign // if(sign) value = ~(value)
-
-	// continue walking over the buffer
-	v.Compressed = v.Compressed[index:]
-	return
-}
-
-// Pack a value to internal buffer
-func (v *VarInt) Pack(value int) {
-	if v.Compressed == nil {
-		v.Clear()
-	}
-
-	if value < math.MinInt32 || math.MaxInt32 < value {
+func PutVarint(buf []byte, x int) int {
+	if x < math.MinInt32 || math.MaxInt32 < x {
 		panic("ERROR: value to Pack is out of bounds, should be within range [-2147483648:2147483647] (32bit)")
 	}
 
-	intSize := unsafe.Sizeof(value)
+	intSize := unsafe.Sizeof(x)
 
-	// buffer
-	data := make([]byte, maxBytesInVarInt) // predefined content of zeroes
+	// stack allocated buffer
+	data := [MaxVarintLen32]byte{} // predefined content of zeroes
 	index := 0
 
-	data[index] = byte(value>>(intSize*8-7)) & 0b01000000 // set sign bit if i<0
-	value = value ^ (value >> (intSize*8 - 1))            // if(i<0) i = ~i
+	data[index] = byte(x>>(intSize*8-7)) & 0b01000000 // set sign bit if i<0
+	x = x ^ (x >> (intSize*8 - 1))                    // if(i<0) i = ~i
 
-	data[index] |= byte(value) & 0b00111111 // pack 6bit into data
-	value >>= 6                             // discard 6 bits
+	data[index] |= byte(x) & 0b00111111 // pack 6bit into data
+	x >>= 6                             // discard 6 bits
 
-	if value != 0 {
+	if x != 0 {
 		data[index] |= 0b10000000 // set extend bit
 
 		for {
 			index++
-			data[index] = byte(value) & 0b01111111 //  pack 7 bits
-			value >>= 7                            // discard 7 bits
+			data[index] = byte(x) & 0b01111111 //  pack 7 bits
+			x >>= 7                            // discard 7 bits
 
-			if value != 0 {
+			if x != 0 {
 				data[index] |= 1 << 7 // set extend bit
 			} else {
-				break // break if value is 0
+				break // break if x is 0
 			}
 
 		}
 	}
 
+	size := index + 1
+
+	if len(buf) < size {
+		panic(fmt.Sprintf("varint buffer needs to have at least %d bytes but has %d", len(data), len(buf)))
+	}
+
+	return copy(buf, data[:size])
+}
+
+// Varint decodes an int from buf and returns that value and the number of bytes read (> 0).
+// If an error occurred, the value is 0 and the number of bytes n is <= 0 with the following meaning:
+//
+//	n == 0: buf too small
+//	n  < 0: value larger than 32 bits (overflow)
+//	        and -n is the number of bytes read
+func Varint(buf []byte) (i int, n int) {
+
+	if len(buf) == 0 {
+		return 0, 0
+	}
+
+	index := 0
+	// handle first byte (most right side)
+	sign := int((buf[index] >> 6) & 0b00000001)
+	value := int(buf[index] & 0b00111111)
+
+	// no E bit set, return after parsing first byte
+	if buf[index] < 0b10000000 {
+		value ^= -sign // if(sign) value = ~(value)
+		index++
+		return value, index
+	}
+
+	// handle 2nd - nth byte
+	buf = buf[1:]
+	const maxAllowedLen = MaxVarintLen32 - 1
+	for i, b := range buf {
+		index++
+		// overflow check
+		if i == maxAllowedLen-1 && b >= 0b10000000 {
+			return 0, -(i + 1)
+		}
+
+		value |= int(b&0b01111111) << (6 + 7*i)
+		if b < 0b10000000 {
+			break
+		}
+	}
+
+	value ^= -sign // if(sign) value = ~(value)
 	index++
-	data = data[:index] // ignore unused 'space'
-	v.Compressed = append(v.Compressed, data...)
+
+	return value, index
+}
+
+// AppendVarint appends the varint-encoded form of x, as generated by PutVarint, to buf and returns the extended buffer.
+func AppendVarint(buf []byte, x int) []byte {
+	arr := [MaxVarintLen32]byte{}
+	sbuf := arr[:]
+	n := PutVarint(sbuf, x)
+	sbuf = sbuf[:n]
+	return append(buf, sbuf...)
+}
+
+// ReadVarint can decode a stream of bytes
+func ReadVarint(r io.ByteReader) (int, error) {
+	b, err := r.ReadByte()
+	if err != nil {
+		return 0, err
+	}
+
+	index := 0
+	// handle first byte (most right side)
+	sign := int((b >> 6) & 0b00000001)
+	value := int(b & 0b00111111)
+
+	// no E bit set, return after parsing first byte
+	if b < 0b10000000 {
+		value ^= -sign // if(sign) value = ~(value)
+		index++
+		return value, nil
+	}
+
+	// handle 2nd - nth byte
+	const maxAllowedLen = MaxVarintLen32 - 1
+	for i := 0; i < MaxVarintLen32; i++ {
+		b, err := r.ReadByte()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return value, io.ErrUnexpectedEOF
+			}
+			return value, nil
+		}
+
+		index++
+		if i == maxAllowedLen-1 && b >= 0b10000000 {
+			return 0, errors.New("overflow due to invalid last byte")
+		}
+
+		value |= int(b&0b01111111) << (6 + 7*i)
+		if b < 0b10000000 {
+			break
+		}
+
+	}
+
+	value ^= -sign // if(sign) value = ~(value)
+	index++
+
+	return value, nil
 }

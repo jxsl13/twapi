@@ -1,115 +1,65 @@
 package compression
 
-// Packer compresses data
-type Packer struct {
-	Buffer []byte
+const (
+	// StringTerminator is the zero byte that terminates the string
+	StringTerminator byte = 0
+
+	// with how many bytes the packer is initialized
+	packerInitialSize = 2048
+)
+
+// NewPacker ceates a new Packer with a given default buffer size.
+// You can provide ONE optional buffer that is used instead of the default one
+func NewPacker(buf ...[]byte) *Packer {
+	var internalBuf []byte
+	if len(buf) > 0 {
+		internalBuf = buf[0]
+	} else {
+		internalBuf = make([]byte, 0, packerInitialSize)
+	}
+
+	return &Packer{
+		buffer: internalBuf,
+	}
 }
 
-// init initializes the buffer if it's nil
-func (p *Packer) init() {
-	if p.Buffer == nil {
-		p.Buffer = make([]byte, 0, packerInitialSize)
-	}
+// Packer compresses data
+type Packer struct {
+	buffer []byte
 }
 
 // Bytes returns the underlying buffer
 func (p *Packer) Bytes() []byte {
-	p.init()
-
-	return p.Buffer
+	return p.buffer
 }
 
-// Reset Buffer
+// Reset internal buffer
 func (p *Packer) Reset() {
-	p.init()
-	p.Buffer = p.Buffer[:0]
+	if p.buffer == nil {
+		p.buffer = make([]byte, 0, packerInitialSize)
+	} else {
+		p.buffer = p.buffer[:0]
+	}
 }
 
 // Size len of the Buffer
 func (p *Packer) Size() int {
-	return len(p.Buffer)
+	return len(p.buffer)
 }
 
-// Add integer, bytes or string
-func (p *Packer) Add(data interface{}) {
-	p.init()
-
-	switch t := data.(type) {
-	case int:
-		var v VarInt
-		v.Pack(t)
-		p.Buffer = append(p.Buffer, v.Bytes()...)
-
-	case string:
-		p.Buffer = append(p.Buffer, []byte(t)...)
-		p.Buffer = append(p.Buffer, byte(0)) // string separator
-
-	case []byte:
-		p.Buffer = append(p.Buffer, t...)
-
-	default:
-		panic(ErrTypeNotSupported)
-	}
+func (p *Packer) AddInt(i int) {
+	p.buffer = AppendVarint(p.buffer, i)
 }
 
-// Unpacker unpacks received messages
-type Unpacker struct {
-	Buffer []byte
+func (p *Packer) AddByte(b byte) {
+	p.buffer = append(p.buffer, b)
 }
 
-// Reset resets the underlying byte slice to a new slice
-func (u *Unpacker) Reset(b []byte) {
-	u.Buffer = b
+func (p *Packer) AddString(s string) {
+	p.buffer = append(p.buffer, []byte(s)...)
+	p.buffer = append(p.buffer, StringTerminator) // string separator
 }
 
-// Size of the underlying buffer
-func (u *Unpacker) Size() int {
-	return len(u.Buffer)
-}
-
-// NextInt unpacks the next integer
-func (u *Unpacker) NextInt() (i int, err error) {
-	v := VarInt{u.Buffer}
-	i, err = v.Unpack()
-	u.Buffer = v.Bytes()
-	return
-}
-
-// NextString unpacks the next string from the message
-func (u *Unpacker) NextString() (s string, err error) {
-	if len(u.Buffer) == 0 {
-		err = ErrNoDataToUnpack
-		return
-	}
-
-	foundSeparator := false
-	separatorPos := 0
-	for idx, b := range u.Buffer {
-		if b == 0 {
-			foundSeparator = true
-			separatorPos = idx
-			break
-		}
-	}
-
-	if !foundSeparator {
-		err = ErrNoStringToUnpack
-		return
-	}
-
-	s = string(u.Buffer[:separatorPos])
-	u.Buffer = u.Buffer[separatorPos+1:] // skip separator
-	return
-}
-
-// NextBytes returns the next size bytes.
-func (u *Unpacker) NextBytes(size int) (b []byte, err error) {
-	if len(u.Buffer) < size || size < 0 {
-		err = ErrNotEnoughDataToUnpack
-		return
-	}
-
-	b = u.Buffer[:size]
-	u.Buffer = u.Buffer[size:]
-	return
+func (p *Packer) AddBytes(data []byte) {
+	p.buffer = append(p.buffer, data...)
 }

@@ -45,9 +45,6 @@ const (
 )
 
 var (
-	// binary delimiter
-	delimiter = []byte("\x00")
-
 	// Logging can be set to "true" in order to see more logging output from the package.
 	Logging = false
 

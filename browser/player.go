@@ -16,12 +16,6 @@ type PlayerInfo struct {
 	Score   int    `json:"score"`
 }
 
-// Equal compares two instances for equality.
-func (p *PlayerInfo) Equal(other PlayerInfo) bool {
-	return p.Name == other.Name && p.Clan == other.Clan && p.Type == other.Type && p.Country == other.Country && p.Score == other.Score
-
-}
-
 func (p *PlayerInfo) String() string {
 	b, _ := json.Marshal(p)
 	return string(b)

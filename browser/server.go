@@ -41,15 +41,9 @@ func (s *ServerInfo) Empty() bool {
 		len(s.Players) == 0
 }
 
-// fix synchronizes the length of playerInfo with its struct field
-func (s *ServerInfo) fix() {
-	s.NumClients = len(s.Players)
-}
-
 // Equal compares two instances of ServerInfo and returns true if they are equal
 func (s *ServerInfo) Equal(other ServerInfo) bool {
-	s.fix()
-	other.fix()
+
 	equalData := s.Address == other.Address &&
 		s.Version == other.Version &&
 		s.Name == other.Name &&
@@ -68,7 +62,7 @@ func (s *ServerInfo) Equal(other ServerInfo) bool {
 		return false
 	}
 	for idx, p := range s.Players {
-		if !p.Equal(other.Players[idx]) {
+		if p != other.Players[idx] {
 			return false
 		}
 	}
@@ -76,14 +70,12 @@ func (s *ServerInfo) Equal(other ServerInfo) bool {
 }
 
 func (s *ServerInfo) String() string {
-	s.fix()
 	b, _ := json.Marshal(s)
 	return string(b)
 }
 
 // MarshalBinary returns a binary representation of the ServerInfo
 func (s *ServerInfo) MarshalBinary() ([]byte, error) {
-	s.fix()
 
 	p := compression.NewPacker()
 	p.AddString(s.Version)
@@ -92,8 +84,8 @@ func (s *ServerInfo) MarshalBinary() ([]byte, error) {
 	p.AddString(s.Hostname)
 	p.AddString(s.Map)
 	p.AddString(s.GameType)
-	p.AddByte(byte(s.ServerFlags))
-	p.AddByte(byte(s.SkillLevel))
+	p.AddByte(s.ServerFlags)
+	p.AddByte(s.SkillLevel)
 
 	p.AddInt(s.NumPlayers)
 	p.AddInt(s.MaxPlayers)

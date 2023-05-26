@@ -5,7 +5,7 @@ const (
 	StringTerminator byte = 0
 
 	// with how many bytes the packer is initialized
-	packerInitialSize = 2048
+	PackerBufferSize = 1024 * 2
 )
 
 // NewPacker ceates a new Packer with a given default buffer size.
@@ -15,7 +15,7 @@ func NewPacker(buf ...[]byte) *Packer {
 	if len(buf) > 0 {
 		internalBuf = buf[0]
 	} else {
-		internalBuf = make([]byte, 0, packerInitialSize)
+		internalBuf = make([]byte, 0, PackerBufferSize)
 	}
 
 	return &Packer{
@@ -36,7 +36,7 @@ func (p *Packer) Bytes() []byte {
 // Reset internal buffer
 func (p *Packer) Reset() {
 	if p.buffer == nil {
-		p.buffer = make([]byte, 0, packerInitialSize)
+		p.buffer = make([]byte, 0, PackerBufferSize)
 	} else {
 		p.buffer = p.buffer[:0]
 	}

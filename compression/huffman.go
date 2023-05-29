@@ -65,7 +65,7 @@ func NewHuffman(frequencyTable [HuffmanMaxSymbols]int) (*Huffman, error) {
 	// build decode lookup table (LUT)
 	for i := 0; i < HuffmanLookupTableSize; i++ {
 		var (
-			bits  = 0
+			bits  = i
 			index = h.startNodeIndex
 		)
 
@@ -195,7 +195,6 @@ func (h *Huffman) Decompress(data []byte) (decompressed []byte, err error) {
 
 	for {
 		var nodeIndex int = -1
-
 		if bitCount >= HuffmanLookupTableBits {
 			nodeIndex = h.decodeLookupTable[bits&HuffmanLookupTableMask]
 		}
@@ -308,7 +307,7 @@ func (h *Huffman) constructTree(frequencyTable [HuffmanMaxSymbols]int) {
 
 	for numNodesLeft > 1 {
 
-		sort.Sort(byFrequencyDesc(nodesLeft[:numNodesLeft]))
+		sort.Stable(byFrequencyDesc(nodesLeft[:numNodesLeft]))
 
 		n := &h.nodes[h.numNodes]
 		n1 := numNodesLeft - 1

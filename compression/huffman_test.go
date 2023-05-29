@@ -19,8 +19,8 @@ func FuzzNewHuffman(f *testing.F) {
 			require.Nil(t, recover())
 		}()
 
-		ftSlice := toUint32(data[:protocol.HuffmanMaxSymbols*4])
-		var ft [protocol.HuffmanMaxSymbols]uint32
+		ftSlice := toInt(data[:protocol.HuffmanMaxSymbols*4])
+		var ft [protocol.HuffmanMaxSymbols]int
 		copy(ft[:], ftSlice)
 
 		h, err := NewHuffman(ft)
@@ -55,7 +55,7 @@ func FuzzHuffmanCompressDecompress(f *testing.F) {
 		h.Compress()
 
 		ftSlice := toUint32(data[:protocol.HuffmanMaxSymbols*4])
-		var ft [protocol.HuffmanMaxSymbols]uint32
+		var ft [protocol.HuffmanMaxSymbols]int
 		copy(ft[:], ftSlice)
 
 		h, err := NewHuffman(ft)
@@ -79,49 +79,46 @@ func TestHuffmanCompressDecompress(t *testing.T) {
 	require.NotNil(t, h)
 
 	src := []byte("compression test string 01")
-	compressed := make([]byte, 1500)
-	n, err := h.Compress(src, compressed)
+	compressed := h.Compress(src)
 	require.NoError(t, err)
-	compressed = compressed[:n]
 
-	decompressed := make([]byte, 1500)
-	n, err = h.Decompress(compressed, decompressed)
+	decompressed, err := h.Decompress(compressed)
 	require.NoError(t, err)
-	decompressed = decompressed[:n]
+
 	require.Equal(t, src, decompressed)
 }
 
 func TestUintToBytes(t *testing.T) {
 	from := protocol.FrequencyTable[:]
-	result := toUint32(toByte(from[:]))
+	result := toInt(toByte(from[:]))
 
 	require.Equal(t, from, result)
 }
 
-func toUint32(data []byte) []uint32 {
+func toInt(data []byte) []int {
 	resultSize := len(data) / 4
 	if resultSize == 0 {
-		return []uint32{}
+		return []int{}
 	}
 	size := resultSize * 4 // make size a divisor of 4
 	data = data[:size]
-	result := make([]uint32, resultSize)
+	result := make([]int, resultSize)
 
 	var i int
 	for idx := range result {
 		i = idx * 4
-		result[idx] = binary.BigEndian.Uint32(data[i : i+4])
+		result[idx] = int(binary.BigEndian.Uint32(data[i : i+4]))
 	}
 
 	return result
 }
 
-func toByte(data []uint32) []byte {
+func toByte(data []int) []byte {
 	result := make([]byte, len(data)*4)
 	var i int
 	for idx, ui := range data {
 		i = idx * 4
-		binary.BigEndian.PutUint32(result[i:i+4], ui)
+		binary.BigEndian.PutUint32(result[i:i+4], uint32(ui))
 	}
 	return result
 }

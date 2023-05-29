@@ -186,7 +186,7 @@ func HuffmanDecompress(inBuffer []byte, inBufferSize int, outBuffer []byte, outB
 		pCurrentNode = HuffmanTree[pCurrentNode].ALeafs[bit]
 
 		if pCurrentNode == HuffmanEOFSymbol {
-			return pOut // return out size
+			return pOut // return out size TODO: pOut+1 was returned here, is/was it necessary?
 		}
 
 		// if symbol was hit

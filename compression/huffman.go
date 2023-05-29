@@ -18,13 +18,13 @@ const (
 )
 
 type Huffman struct {
-	nodes             [HuffmanMaxNodes]hnode
+	nodes             [HuffmanMaxNodes]node
 	decodeLookupTable [HuffmanLookupTableSize]int
 	startNodeIndex    int
 	numNodes          int
 }
 
-type hnode struct {
+type node struct {
 	// symbol
 	Bits    int
 	NumBits int
@@ -120,7 +120,9 @@ func (h *Huffman) Compress(data []byte) (compressed []byte) {
 		bitCount -= 8
 	}
 
-	compressed = append(compressed, byte(bits))
+	if bitCount > 0 {
+		compressed = append(compressed, byte(bits))
+	}
 
 	return compressed
 }
@@ -282,7 +284,7 @@ func (h *Huffman) constructTree(frequencyTable [HuffmanMaxSymbols]int) {
 		nodesLeft        [HuffmanMaxSymbols]*constructNode
 		numNodesLeft     = HuffmanMaxSymbols
 
-		n  *hnode
+		n  *node
 		ns *constructNode
 	)
 

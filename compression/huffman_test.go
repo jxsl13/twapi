@@ -1,7 +1,9 @@
 package compression
 
 import (
+	"crypto/rand"
 	"encoding/binary"
+	"io"
 	"testing"
 
 	"github.com/jxsl13/twapi/protocol"
@@ -88,6 +90,31 @@ func TestHuffmanCompress(t *testing.T) {
 	require.Equal(t, src, decompressed)
 }
 
+func FuzzHuffmanCompress(f *testing.F) {
+	h, _ := NewHuffman(protocol.FrequencyTable)
+
+	buf := [1500]byte{}
+
+	for i := 0; i < 100; i++ {
+		_, err := io.ReadFull(rand.Reader, buf[:])
+		if err != nil {
+			panic(err)
+		}
+		f.Add(buf[:])
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		compressed := h.Compress(data)
+
+		result := make([]byte, 0, len(data)*2)
+		n := HuffmanDecompress(compressed, len(compressed), result, len(result))
+		require.GreaterOrEqual(t, n, 0)
+		result = result[:n]
+
+		require.Equal(t, data, result)
+	})
+}
+
 func TestHuffmanCompressDecompress(t *testing.T) {
 	h, err := NewHuffman(protocol.FrequencyTable)
 	require.NoError(t, err)
@@ -159,7 +186,7 @@ func HuffmanDecompress(inBuffer []byte, inBufferSize int, outBuffer []byte, outB
 		pCurrentNode = HuffmanTree[pCurrentNode].ALeafs[bit]
 
 		if pCurrentNode == HuffmanEOFSymbol {
-			return pOut + 1 // return out size
+			return pOut // return out size
 		}
 
 		// if symbol was hit

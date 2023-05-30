@@ -19,10 +19,22 @@ func NewNetSocketFrom(bindAddr string, randomPort ...bool) (NetSocket, error) {
 	if err != nil {
 		return NilNetSocket, err
 	}
+
 	return NewNetSocket(ap, randomPort...)
 }
 
+// NewSocket creates a new UDP socket for sending data to any IP.
+// bindAddrPort expects an ip:port. In case the port is 0, the operating system will
+// assign a random port.
+// If you want a random hight port in the range between 49152 and 65535, then
+// pass a true as addistional single extra parameter for 'randomPort'
 func NewNetSocket(bindAddrPort netip.AddrPort, randomPort ...bool) (sock NetSocket, err error) {
+	randPort := false
+	if len(randomPort) > 0 {
+		randPort = randomPort[0]
+	} else if bindAddrPort.Port() == 0 {
+		randPort = true
+	}
 
 	var conn *net.UDPConn
 	const (
@@ -33,14 +45,16 @@ func NewNetSocket(bindAddrPort netip.AddrPort, randomPort ...bool) (sock NetSock
 	addr := bindAddrPort.Addr()
 	retries := 0
 	for retries < maxRetries {
-		if len(randomPort) > 0 && randomPort[0] {
+		if randPort {
 			port := uint16(49152 + rand.Int31n(portRange)) // <= 65535
-			udpBindAddr := net.UDPAddrFromAddrPort(netip.AddrPortFrom(addr, port))
-			conn, err = net.DialUDP(udpBindAddr.Network(), udpBindAddr, udpBindAddr) // local and remote address are the same
+			laddr := net.UDPAddrFromAddrPort(netip.AddrPortFrom(addr, port))
+			raddr := laddr // local and remote address are the same
+			conn, err = net.DialUDP(laddr.Network(), laddr, raddr)
 			if err != nil {
 				retries++
 				continue
 			}
+			break
 		}
 	}
 	if err != nil {

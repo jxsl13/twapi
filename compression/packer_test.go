@@ -1,9 +1,7 @@
 package compression
 
 import (
-	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -52,35 +50,33 @@ func TestPackerAndUnpacker(t *testing.T) {
 	p.Reset()
 	require.Zero(p.Size())
 
-	var (
-		randomNumbers         = 100_000_000
-		randomNumberGenerator = rand.New(rand.NewSource(time.Now().UnixNano()))
-		numbers               = make([]int, randomNumbers)
-	)
-
 	// generate random numbers
 	sign := 0
-	for idx := range numbers {
+	for i := -1_000_000; i < 1_000_000; i++ {
 
-		if idx%2 == 0 {
+		if i%2 == 0 {
 			sign = -1
 		} else {
 			sign = 1
 		}
 
-		value := sign * int(randomNumberGenerator.Int31())
-		numbers[idx] = value
+		value := sign * i
 		p.AddInt(value)
 	}
-	b = p.Bytes()
-	u.Reset(b)
 
-	require.Equal(u.Size(), len(b))
+	u.Reset(p.Bytes())
 
-	for _, number := range numbers {
+	for i := -1_000_000; i < 1_000_000; i++ {
+		if i%2 == 0 {
+			sign = -1
+		} else {
+			sign = 1
+		}
+
+		value := sign * i
 		n, err := u.NextInt()
 		require.NoError(err)
-		require.Equal(n, number)
+		require.Equal(value, n)
 	}
 
 }

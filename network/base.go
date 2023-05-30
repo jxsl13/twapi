@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"fmt"
 	"net/netip"
 	"time"
 
@@ -28,14 +27,10 @@ type NetBase struct {
 }
 
 func NewNetBase(ctx context.Context, socket *NetSocket) (NetBase, error) {
-	h, err := compression.NewHuffman(protocol.FrequencyTable)
-	if err != nil {
-		return NilNetBase, fmt.Errorf("failed to create net base: %w", err)
-	}
 	return NetBase{
 		ctx:      ctx,
 		socket:   socket,
-		huffmann: h,
+		huffmann: compression.NewHuffman(protocol.FrequencyTable),
 	}, nil
 }
 

@@ -2,7 +2,6 @@ package compression
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 
 	"github.com/jxsl13/twapi/protocol"
@@ -18,27 +17,26 @@ const (
 )
 
 type Huffman struct {
-	nodes             [HuffmanMaxNodes]node
-	decodeLookupTable [HuffmanLookupTableSize]int
-	startNodeIndex    int
-	numNodes          int
+	nodes     [HuffmanMaxNodes]node
+	decodeLut [HuffmanLookupTableSize]*node
+	startNode *node
+	numNodes  uint16
 }
 
 type node struct {
 	// symbol
-	Bits    int
-	NumBits int
+	Bits    uint32
+	NumBits uint32
 
 	// don't use pointers for this. shorts are smaller so we can fit more data into the cache
-	Left  int
-	Right int
+	Leafs [2]uint16
 
 	// what the symbol represents
-	Symbol int
+	Symbol byte
 }
 
 type constructNode struct {
-	nodeID    int
+	nodeID    uint16
 	frequency int
 }
 
@@ -51,13 +49,6 @@ func (a byFrequencyDesc) Less(i, j int) bool { return a[i].frequency > a[j].freq
 // NewHuffman expects a frequency table aka index -> symbol
 // You can use the default one that can be found under protocol.FrequencyTable
 func NewHuffman(frequencyTable [HuffmanMaxSymbols]int) (*Huffman, error) {
-	m := make(map[int]int, len(frequencyTable))
-	for idx, u := range frequencyTable {
-		prevIdx, found := m[u]
-		if found {
-			return nil, fmt.Errorf("invalid frequency table: every element must be unique: found %d at %d and %d", u, prevIdx, idx)
-		}
-	}
 
 	h := Huffman{}
 	h.constructTree(frequencyTable)
@@ -65,29 +56,25 @@ func NewHuffman(frequencyTable [HuffmanMaxSymbols]int) (*Huffman, error) {
 	// build decode lookup table (LUT)
 	for i := 0; i < HuffmanLookupTableSize; i++ {
 		var (
-			bits  = i
-			index = h.startNodeIndex
+			bits uint32 = uint32(i)
+			k    int
+			n    = h.startNode
 		)
 
-		var x int
-		for x = 0; x < HuffmanLookupTableBits; x++ {
-			if bits&1 != 0 {
-				index = h.nodes[index].Right
-			} else {
-				index = h.nodes[index].Left
-			}
+		for k = 0; k < HuffmanLookupTableBits; k++ {
+			n = &h.nodes[n.Leafs[bits&1]]
 			bits >>= 1
 
-			child := h.nodes[index]
-			if child.NumBits >= 0 {
-				h.decodeLookupTable[i] = index
+			if n.NumBits > 0 {
+				h.decodeLut[i] = n
 				break
 			}
 		}
 
-		if x == HuffmanLookupTableBits {
-			h.decodeLookupTable[i] = index
+		if k == HuffmanLookupTableBits {
+			h.decodeLut[i] = n
 		}
+
 	}
 	return &h, nil
 }
@@ -95,8 +82,10 @@ func NewHuffman(frequencyTable [HuffmanMaxSymbols]int) (*Huffman, error) {
 func (h *Huffman) Compress(data []byte) (compressed []byte) {
 	compressed = make([]byte, 0, len(data))
 
-	bits := 0
-	bitCount := 0
+	var (
+		bits     uint32
+		bitCount uint32
+	)
 
 	for _, x := range data {
 		lookup := h.nodes[x]
@@ -127,138 +116,96 @@ func (h *Huffman) Compress(data []byte) (compressed []byte) {
 	return compressed
 }
 
-/*
-	def decompress(self, inp_buffer: bytearray, start_index: int = 0, size: int = -1):
-        bits = 0
-        bitcount = 0
-        eof = self.nodes[HUFFMAN_EOF_SYMBOL]
-        output = bytearray()
-
-        src_index = start_index
-
-        if size == -1:
-            size = len(inp_buffer)
-        else:
-            size += src_index
-
-        while True:
-            node_i = None
-            if bitcount >= HUFFMAN_LUTBITS:
-                node_i = self.decode_lut[bits & HUFFMAN_LUTMASK]
-
-            while bitcount < 24 and src_index != size:
-                bits |= inp_buffer[src_index] << bitcount
-                src_index += 1
-                bitcount += 8
-
-            if node_i is None:
-                node_i = self.decode_lut[bits & HUFFMAN_LUTMASK]
-
-            if self.nodes[node_i].numbits:
-                bits >>= self.nodes[node_i].numbits
-                bitcount -= self.nodes[node_i].numbits
-            else:
-                bits >>= HUFFMAN_LUTBITS
-                bitcount -= HUFFMAN_LUTBITS
-
-                while True:
-                    if bits & 1:
-                        node_i = self.nodes[node_i].right
-                    else:
-                        node_i = self.nodes[node_i].left
-
-                    bitcount -= 1
-                    bits >>= 1
-
-                    if self.nodes[node_i].numbits:
-                        break
-
-                    if bitcount == 0:
-                        raise ValueError("No more bits, decoding error")
-
-            if self.nodes[node_i] == eof:
-                break
-            output.append(self.nodes[node_i].symbol)
-
-        return output
-
-
-*/
-
 func (h *Huffman) Decompress(data []byte) (decompressed []byte, err error) {
-	decompressed = make([]byte, 0, len(data))
+	decompressed = make([]byte, len(data)*2)
+
 	var (
-		bits     = 0
-		bitCount = 0
-		eof      = h.nodes[HuffmanEOFSymbol]
-		srcIndex = 0
-		dataSize = len(data)
+		src      = 0
+		srcEnd   = len(data)
+		dst      = 0
+		dstEnd   = len(decompressed)
+		bits     uint32
+		bitCount uint32
+		eof      *node = &h.nodes[HuffmanEOFSymbol]
+		n        *node = nil
 	)
 
 	for {
-		var nodeIndex int = -1
+		n = nil
 		if bitCount >= HuffmanLookupTableBits {
-			nodeIndex = h.decodeLookupTable[bits&HuffmanLookupTableMask]
+			n = h.decodeLut[bits&HuffmanLookupTableMask]
 		}
 
-		for bitCount < 24 && srcIndex < dataSize {
-			bits |= int(data[srcIndex] << bitCount)
-			srcIndex++
+		for bitCount < 24 && src < srcEnd {
+			bits |= uint32(data[src]) << bitCount
+			src++
 			bitCount += 8
 		}
 
-		if nodeIndex < 0 {
-			nodeIndex = h.decodeLookupTable[bits&HuffmanLookupTableMask]
+		if n == nil {
+			n = h.decodeLut[bits&HuffmanLookupTableMask]
 		}
 
-		if n := h.nodes[nodeIndex]; n.NumBits > 0 {
+		if n == nil {
+			return decompressed, errors.New("decoding error: symbol not found in lookup table")
+		}
+
+		if n.NumBits > 0 {
 			bits >>= n.NumBits
 			bitCount -= n.NumBits
 		} else {
 			bits >>= HuffmanLookupTableBits
 			bitCount -= HuffmanLookupTableBits
 
+			// walk the tree bit by bit
 			for {
-				if bits&1 != 0 {
-					nodeIndex = h.nodes[nodeIndex].Right
-				} else {
-					nodeIndex = h.nodes[nodeIndex].Left
-				}
+				// traverse tree
+				n = &h.nodes[n.Leafs[bits&1]]
 
-				bitCount -= 1
+				// remove bit
+				bitCount--
 				bits >>= 1
 
-				if h.nodes[nodeIndex].NumBits > 0 {
+				// check if we hit a symbol
+				if n.NumBits > 0 {
 					break
 				}
 
 				if bitCount == 0 {
-					return decompressed, errors.New("decoding error: no more bits")
+					return decompressed, errors.New("decoding error: symbol not found in tree")
 				}
 			}
-			if h.nodes[nodeIndex] == eof {
-				break
-			}
-			decompressed = append(decompressed, byte(h.nodes[nodeIndex].Symbol))
 		}
+
+		if n == eof {
+			break
+		}
+
+		if dst == dstEnd {
+			return decompressed, errors.New("decompression failed: not enough space in decompression buffer")
+		}
+
+		decompressed[dst] = n.Symbol
+		dst++
 	}
 
-	return decompressed, nil
+	return decompressed[:dst], nil
 }
 
-func (h *Huffman) setBitsR(nodeIndex int, bits int, depth int) {
+func (h *Huffman) setBitsR(n *node, bits uint32, depth uint32) {
 	var (
-		n       = &h.nodes[nodeIndex]
-		newBits int
+		newBits uint32
+		left    = n.Leafs[0]
+		right   = n.Leafs[1]
 	)
 
-	if n.Right < 0xffff {
+	if right < 0xffff {
 		newBits = bits | (1 << depth)
-		h.setBitsR(n.Right, newBits, depth+1)
+		h.setBitsR(&h.nodes[right], newBits, depth+1)
 	}
-	if n.Left < 0xffff {
+	if left < 0xffff {
 		newBits = bits
-		h.setBitsR(n.Left, newBits, depth+1)
+		h.setBitsR(&h.nodes[left], newBits, depth+1)
 	}
 
 	if n.NumBits > 0 {
@@ -288,12 +235,12 @@ func (h *Huffman) constructTree(frequencyTable [HuffmanMaxSymbols]int) {
 		ns *constructNode
 	)
 
-	for i := 0; i < HuffmanMaxSymbols; i++ {
+	for i := uint16(0); i < HuffmanMaxSymbols; i++ {
 		n = &h.nodes[i]
 		n.NumBits = 0xffffffff
-		n.Symbol = i
-		n.Left = 0xffff
-		n.Right = 0xffff
+		n.Symbol = byte(i) // TODO: EOF = 0
+		n.Leafs[0] = 0xffff
+		n.Leafs[1] = 0xffff
 
 		ns = &nodesLeftStorage[i]
 		if i == HuffmanEOFSymbol {
@@ -306,18 +253,17 @@ func (h *Huffman) constructTree(frequencyTable [HuffmanMaxSymbols]int) {
 	}
 
 	h.numNodes = HuffmanMaxSymbols
-
 	for numNodesLeft > 1 {
 
 		sort.Stable(byFrequencyDesc(nodesLeft[:numNodesLeft]))
 
-		n := &h.nodes[h.numNodes]
+		n = &h.nodes[h.numNodes]
 		n1 := numNodesLeft - 1
 		n2 := numNodesLeft - 2
 
 		n.NumBits = 0
-		n.Left = nodesLeft[n1].nodeID
-		n.Right = nodesLeft[n2].nodeID
+		n.Leafs[0] = nodesLeft[n1].nodeID
+		n.Leafs[1] = nodesLeft[n2].nodeID
 
 		freq1 := nodesLeft[n1].frequency
 		freq2 := nodesLeft[n2].frequency
@@ -329,6 +275,6 @@ func (h *Huffman) constructTree(frequencyTable [HuffmanMaxSymbols]int) {
 		numNodesLeft--
 	}
 
-	h.startNodeIndex = h.numNodes - 1
-	h.setBitsR(h.startNodeIndex, 0, 0)
+	h.startNode = n
+	h.setBitsR(n, 0, 0)
 }

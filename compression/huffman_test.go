@@ -1,4 +1,4 @@
-package compression
+package compression_test
 
 import (
 	"crypto/rand"
@@ -6,6 +6,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/jxsl13/twapi/compression"
 	"github.com/jxsl13/twapi/protocol"
 	"github.com/stretchr/testify/require"
 )
@@ -25,14 +26,14 @@ func FuzzNewHuffman(f *testing.F) {
 		var ft [protocol.HuffmanMaxSymbols]uint32
 		copy(ft[:], ftSlice)
 
-		h := NewHuffman(ft)
+		h := compression.NewHuffman(ft)
 		require.NotNil(t, h)
 	})
 }
 
 func FuzzHuffmanCompressDecompress(f *testing.F) {
 
-	h := NewHuffman(protocol.FrequencyTable)
+	h := compression.NewHuffman(protocol.FrequencyTable)
 
 	f.Add([]byte("test"))
 	f.Add([]byte("second test"))
@@ -69,7 +70,7 @@ func FuzzHuffmanCompressDecompress(f *testing.F) {
 }
 
 func TestHuffmanCompress(t *testing.T) {
-	h := NewHuffman(protocol.FrequencyTable)
+	h := compression.NewHuffman(protocol.FrequencyTable)
 
 	src := []byte("compression test string 01")
 	compressed := make([]byte, 1500)
@@ -79,7 +80,7 @@ func TestHuffmanCompress(t *testing.T) {
 }
 
 func TestHuffmanCompressDecompress(t *testing.T) {
-	h := NewHuffman(protocol.FrequencyTable)
+	h := compression.NewHuffman(protocol.FrequencyTable)
 
 	src := []byte("compression test string 01")
 	compressed := make([]byte, 1500)
@@ -97,13 +98,13 @@ func TestHuffmanCompressDecompress(t *testing.T) {
 
 /*
 // TestHuffmanCompressDecompressEOFBitObsolete tested whether the frequency table needed its last frequency,
-// as it is overwritten anyway in the NewHuffman constructor.
+// as it is overwritten anyway in the compression.NewHuffman constructor.
 func TestHuffmanCompressDecompressEOFBitObsolete(t *testing.T) {
 
 	mft := protocol.FrequencyTable
-	h1 := NewHuffman(mft)
+	h1 := compression.NewHuffman(mft)
 	mft[HuffmanEOFSymbol] = 1 << 31 // big frequency to potentially break the table
-	h2 := NewHuffman(mft)
+	h2 := compression.NewHuffman(mft)
 
 	src := []byte("compression test string 01")
 	compressed := make([]byte, 1500)

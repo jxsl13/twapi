@@ -53,9 +53,9 @@ func TestPackerAndUnpacker(t *testing.T) {
 	require.Zero(p.Size())
 
 	var (
-		randoNumbers          = 100_000_000
+		randomNumbers         = 100_000_000
 		randomNumberGenerator = rand.New(rand.NewSource(time.Now().UnixNano()))
-		numbers               = make([]int, randoNumbers)
+		numbers               = make([]int, randomNumbers)
 	)
 
 	// generate random numbers

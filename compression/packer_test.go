@@ -23,7 +23,7 @@ func TestPackerAndUnpacker(t *testing.T) {
 	require.Equal("5", five)
 
 	_, err = invalidUnpacker.NextString()
-	require.ErrorIs(err, ErrNoStringToUnpack)
+	require.ErrorIs(err, ErrNotAString)
 
 	intTest := 5
 	stringTest := "abcdefg"

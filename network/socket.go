@@ -81,7 +81,7 @@ func NewNetSocket(bindAddrPort netip.AddrPort, randomPort ...bool) (sock NetSock
 	var broadcastErr error
 	err = rc.Control(func(fd uintptr) {
 		// enable boradcast option
-		broadcastErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1)
+		broadcastErr = syscall.SetsockoptInt(castFd(fd), syscall.SOL_SOCKET, syscall.SO_BROADCAST, 1)
 	})
 	if err != nil {
 		return NilNetSocket, err

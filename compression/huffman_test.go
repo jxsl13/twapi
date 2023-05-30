@@ -32,6 +32,8 @@ func FuzzNewHuffman(f *testing.F) {
 
 func FuzzHuffmanCompressDecompress(f *testing.F) {
 
+	h := NewHuffman(protocol.FrequencyTable)
+
 	f.Add([]byte("test"))
 	f.Add([]byte("second test"))
 
@@ -42,19 +44,27 @@ func FuzzHuffmanCompressDecompress(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		if len(data) < protocol.HuffmanMaxSymbols*4 {
-			return
-		}
 		defer func() {
 			require.Nil(t, recover())
 		}()
 
-		ftSlice := toUint32(data[:protocol.HuffmanMaxSymbols*4])
-		var ft [protocol.HuffmanMaxSymbols]uint32
-		copy(ft[:], ftSlice)
+		size := 1500
+		if len(data) > 1500/2 {
+			size = len(data) * 2
+		}
 
-		h := NewHuffman(ft)
-		require.NotNil(t, h)
+		compressed := make([]byte, size)
+
+		n, err := h.Compress(data, compressed)
+		require.NoError(t, err)
+		compressed = compressed[:n]
+
+		decompressed := make([]byte, len(data))
+		n, err = h.Decompress(compressed, decompressed)
+		require.NoError(t, err)
+		decompressed = decompressed[:n]
+
+		require.Equal(t, data, decompressed)
 	})
 }
 
@@ -79,6 +89,27 @@ func TestHuffmanCompressDecompress(t *testing.T) {
 
 	decompressed := make([]byte, 1500)
 	n, err = h.Decompress(compressed, decompressed)
+	decompressed = decompressed[:n]
+	require.NoError(t, err)
+
+	require.Equal(t, src, decompressed)
+}
+
+func TestHuffmanCompressDecompressEOFBitObsolete(t *testing.T) {
+
+	mft := protocol.FrequencyTable
+	h1 := NewHuffman(mft)
+	mft[HuffmanEOFSymbol] = 1 << 31 // big frequency to potentially break the table
+	h2 := NewHuffman(mft)
+
+	src := []byte("compression test string 01")
+	compressed := make([]byte, 1500)
+	n, err := h1.Compress(src, compressed)
+	require.NoError(t, err)
+	compressed = compressed[:n]
+
+	decompressed := make([]byte, 1500)
+	n, err = h2.Decompress(compressed, decompressed)
 	decompressed = decompressed[:n]
 	require.NoError(t, err)
 

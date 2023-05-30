@@ -21,19 +21,16 @@ func FuzzNewHuffman(f *testing.F) {
 			require.Nil(t, recover())
 		}()
 
-		ftSlice := toInt(data[:protocol.HuffmanMaxSymbols*4])
-		var ft [protocol.HuffmanMaxSymbols]int
+		ftSlice := toUint32(data[:protocol.HuffmanMaxSymbols*4])
+		var ft [protocol.HuffmanMaxSymbols]uint32
 		copy(ft[:], ftSlice)
 
-		h, err := NewHuffman(ft)
-		require.NoError(t, err)
+		h := NewHuffman(ft)
 		require.NotNil(t, h)
 	})
 }
 
-/*
 func FuzzHuffmanCompressDecompress(f *testing.F) {
-	h, _ := NewHuffman(protocol.FrequencyTable)
 
 	f.Add([]byte("test"))
 	f.Add([]byte("second test"))
@@ -51,79 +48,37 @@ func FuzzHuffmanCompressDecompress(f *testing.F) {
 		defer func() {
 			require.Nil(t, recover())
 		}()
-		result := make([]byte, len(data))
-		h.Compress()
 
 		ftSlice := toUint32(data[:protocol.HuffmanMaxSymbols*4])
-		var ft [protocol.HuffmanMaxSymbols]int
+		var ft [protocol.HuffmanMaxSymbols]uint32
 		copy(ft[:], ftSlice)
 
-		h, err := NewHuffman(ft)
-		if err != nil {
-			return
-		}
+		h := NewHuffman(ft)
 		require.NotNil(t, h)
 	})
 }
-*/
-
-func TestNewHuffman(t *testing.T) {
-	h, err := NewHuffman(protocol.FrequencyTable)
-	require.NoError(t, err)
-	require.NotNil(t, h)
-}
 
 func TestHuffmanCompress(t *testing.T) {
-	h, err := NewHuffman(protocol.FrequencyTable)
-	require.NoError(t, err)
-	require.NotNil(t, h)
+	h := NewHuffman(protocol.FrequencyTable)
 
 	src := []byte("compression test string 01")
-	compressed := h.Compress(src)
-
-	decompressed := make([]byte, len(src)*10)
-	n := HuffmanDecompress(compressed, len(compressed), decompressed, len(decompressed))
-	require.Greater(t, n, -1)
-	decompressed = decompressed[:n]
+	compressed := make([]byte, 1500)
+	n, err := h.Compress(src, compressed)
 	require.NoError(t, err)
-
-	require.Equal(t, src, decompressed)
-}
-
-func FuzzHuffmanCompress(f *testing.F) {
-	h, _ := NewHuffman(protocol.FrequencyTable)
-
-	buf := [1500]byte{}
-
-	for i := 0; i < 100; i++ {
-		_, err := io.ReadFull(rand.Reader, buf[:])
-		if err != nil {
-			panic(err)
-		}
-		f.Add(buf[:])
-	}
-
-	f.Fuzz(func(t *testing.T, data []byte) {
-		compressed := h.Compress(data)
-
-		result := make([]byte, 0, len(data)*2)
-		n := HuffmanDecompress(compressed, len(compressed), result, len(result))
-		require.GreaterOrEqual(t, n, 0)
-		result = result[:n]
-
-		require.Equal(t, data, result)
-	})
+	require.Greater(t, n, 0)
 }
 
 func TestHuffmanCompressDecompress(t *testing.T) {
-	h, err := NewHuffman(protocol.FrequencyTable)
-	require.NoError(t, err)
-	require.NotNil(t, h)
+	h := NewHuffman(protocol.FrequencyTable)
 
 	src := []byte("compression test string 01")
-	compressed := h.Compress(src)
+	compressed := make([]byte, 1500)
+	n, err := h.Compress(src, compressed)
+	require.NoError(t, err)
+	compressed = compressed[:n]
+
 	decompressed := make([]byte, 1500)
-	n, err := h.Decompress(compressed, decompressed)
+	n, err = h.Decompress(compressed, decompressed)
 	decompressed = decompressed[:n]
 	require.NoError(t, err)
 
@@ -132,85 +87,42 @@ func TestHuffmanCompressDecompress(t *testing.T) {
 
 func TestUintToBytes(t *testing.T) {
 	from := protocol.FrequencyTable[:]
-	result := toInt(toByte(from[:]))
+	result := toUint32(toByte(from[:]))
 
 	require.Equal(t, from, result)
 }
 
-func toInt(data []byte) []int {
+func toUint32(data []byte) []uint32 {
 	resultSize := len(data) / 4
 	if resultSize == 0 {
-		return []int{}
+		return []uint32{}
 	}
 	size := resultSize * 4 // make size a divisor of 4
 	data = data[:size]
-	result := make([]int, resultSize)
+	result := make([]uint32, resultSize)
 
 	var i int
 	for idx := range result {
 		i = idx * 4
-		result[idx] = int(binary.BigEndian.Uint32(data[i : i+4]))
+		result[idx] = binary.BigEndian.Uint32(data[i : i+4])
 	}
 
 	return result
 }
 
-func toByte(data []int) []byte {
+func toByte(data []uint32) []byte {
 	result := make([]byte, len(data)*4)
 	var i int
 	for idx, ui := range data {
 		i = idx * 4
-		binary.BigEndian.PutUint32(result[i:i+4], uint32(ui))
+		binary.BigEndian.PutUint32(result[i:i+4], ui)
 	}
 	return result
 }
 
-type HuffmanNode struct {
-	Bits    uint32
-	NumBits uint32
-	ALeafs  [2]uint16
-	Symbol  byte
-}
-
-func HuffmanDecompress(inBuffer []byte, inBufferSize int, outBuffer []byte, outBufferSize int) int {
-
-	pCurrentByte := 0
-	pCurrentBit := byte(0)
-	pCurrentNode := uint16(len(HuffmanTree) - 1)
-	pOut := 0
-
-	for {
-		if pCurrentByte > inBufferSize-1 {
-			return -1
-		}
-		bit := (inBuffer[pCurrentByte] & (1 << pCurrentBit)) >> pCurrentBit
-
-		pCurrentNode = HuffmanTree[pCurrentNode].ALeafs[bit]
-
-		if pCurrentNode == HuffmanEOFSymbol {
-			return pOut // return out size TODO: pOut+1 was returned here, is/was it necessary?
-		}
-
-		// if symbol was hit
-		if HuffmanTree[pCurrentNode].NumBits != 0 {
-
-			if pOut > outBufferSize-1 {
-				return -1
-			}
-
-			outBuffer[pOut] = HuffmanTree[pCurrentNode].Symbol
-			pOut += 1
-			pCurrentNode = uint16(len(HuffmanTree) - 1)
-		}
-
-		pCurrentBit += 1
-		if pCurrentBit == 8 {
-			pCurrentBit = 0
-			pCurrentByte += 1
-		}
-	}
-}
-
+/*
+// expected tree, leafs are 0 through 256
+// nodes are the ones after 	{7050, 15, [2]uint16{65535, 65535}, 0} == EOF
 var HuffmanTree = [HuffmanMaxNodes]HuffmanNode{
 	{1, 1, [2]uint16{65535, 65535}, 0},
 	{8, 4, [2]uint16{65535, 65535}, 1},
@@ -726,3 +638,4 @@ var HuffmanTree = [HuffmanMaxNodes]HuffmanNode{
 	{0, 0, [2]uint16{509, 510}, 0},
 	{0, 0, [2]uint16{511, 0}, 0},
 }
+*/

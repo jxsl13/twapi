@@ -2,6 +2,7 @@ package compression
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/jxsl13/twapi/protocol"
@@ -14,6 +15,11 @@ const (
 	HuffmanLookupTableBits = 10
 	HuffmanLookupTableSize = (1 << HuffmanLookupTableBits)
 	HuffmanLookupTableMask = (HuffmanLookupTableSize - 1)
+)
+
+var (
+	ErrHuffmanCompress   = errors.New("compression error")
+	ErrHuffmanDecompress = errors.New("decompression error")
 )
 
 type Huffman struct {
@@ -37,7 +43,7 @@ type node struct {
 
 type constructNode struct {
 	nodeID    uint16
-	frequency int
+	frequency uint32
 }
 
 type byFrequencyDesc []*constructNode
@@ -48,7 +54,9 @@ func (a byFrequencyDesc) Less(i, j int) bool { return a[i].frequency > a[j].freq
 
 // NewHuffman expects a frequency table aka index -> symbol
 // You can use the default one that can be found under protocol.FrequencyTable
-func NewHuffman(frequencyTable [HuffmanMaxSymbols]int) (*Huffman, error) {
+// You can put the frequency at index  HuffmanMaxSymbols -1 to the value 1.
+// It is the EOF value which will ne overwritten anyway.
+func NewHuffman(frequencyTable [HuffmanMaxSymbols]uint32) *Huffman {
 
 	h := Huffman{}
 	h.constructTree(frequencyTable)
@@ -76,13 +84,16 @@ func NewHuffman(frequencyTable [HuffmanMaxSymbols]int) (*Huffman, error) {
 		}
 
 	}
-	return &h, nil
+	return &h
 }
 
-func (h *Huffman) Compress(data []byte) (compressed []byte) {
-	compressed = make([]byte, 0, len(data))
+// Compress compresses in data to the compressed slice.
+// 'compressed' must be preallocated with enough space to fit the result.
+func (h *Huffman) Compress(data, compressed []byte) (written int, err error) {
 
 	var (
+		dst      = 0
+		dstEnd   = len(compressed)
 		bits     uint32
 		bitCount uint32
 	)
@@ -93,7 +104,11 @@ func (h *Huffman) Compress(data []byte) (compressed []byte) {
 		bitCount += lookup.NumBits
 
 		for bitCount >= 8 {
-			compressed = append(compressed, byte(bits))
+			if dst == dstEnd {
+				return dst, fmt.Errorf("%w: : compression buffer too small", ErrHuffmanCompress)
+			}
+			compressed[dst] = byte(bits)
+			dst++
 			bits >>= 8
 			bitCount -= 8
 		}
@@ -104,18 +119,28 @@ func (h *Huffman) Compress(data []byte) (compressed []byte) {
 	bitCount += lookupEOF.NumBits
 
 	for bitCount >= 8 {
-		compressed = append(compressed, byte(bits))
+		if dst == dstEnd {
+			return dst, fmt.Errorf("%w: : compression buffer too small", ErrHuffmanCompress)
+		}
+		compressed[dst] = byte(bits)
+		dst++
 		bits >>= 8
 		bitCount -= 8
 	}
 
 	if bitCount > 0 {
-		compressed = append(compressed, byte(bits))
+		if dst == dstEnd {
+			return dst, fmt.Errorf("%w: : compression buffer too small", ErrHuffmanCompress)
+		}
+		compressed[dst] = byte(bits)
+		dst++
 	}
 
-	return compressed
+	return dst, nil
 }
 
+// Decompress decompresses 'data' and writes the result into 'decompressed'.
+// The decompressed slice must be preallocated to fit the decompressed data.
 func (h *Huffman) Decompress(data, decompressed []byte) (written int, err error) {
 
 	var (
@@ -223,7 +248,7 @@ func (h *Huffman) sort(nodesLeftStorage []constructNode, nodesLeft []int) {
 	})
 }
 
-func (h *Huffman) constructTree(frequencyTable [HuffmanMaxSymbols]int) {
+func (h *Huffman) constructTree(frequencyTable [HuffmanMaxSymbols]uint32) {
 
 	var (
 		nodesLeftStorage [HuffmanMaxSymbols]constructNode

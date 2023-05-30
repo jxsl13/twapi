@@ -4,17 +4,18 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 )
 
 var (
 	// ErrNoDataToUnpack is returned if the compressed array does not have sufficient data to unpack
-	ErrNoDataToUnpack = errors.New("no data")
+	ErrNoDataToUnpack = fmt.Errorf("%w: no data", io.EOF)
 
-	// ErrNoStringToUnpack if no separator after a string is found, the string cannot be unpacked, as there is no string
-	ErrNoStringToUnpack = errors.New("could not unpack string: terminator not found")
+	// ErrNotAString if no separator after a string is found, the string cannot be unpacked, as there is no string
+	ErrNotAString = errors.New("could not unpack string: terminator not found")
 
-	// ErrNotEnoughDataToUnpack is used when the user tries to retrieve more data with NextBytes() than there is available.
-	ErrNotEnoughDataToUnpack = errors.New("trying to read more data than available")
+	// ErrNotEnoughData is used when the user tries to retrieve more data with NextBytes() than there is available.
+	ErrNotEnoughData = errors.New("trying to read more data than available")
 )
 
 // NewUnpacker constructs a new Unpacker
@@ -41,9 +42,9 @@ func (u *Unpacker) Size() int {
 func (u *Unpacker) NextInt() (i int, err error) {
 	i, n := Varint(u.buffer)
 	if n == 0 {
-		return 0, errors.New("invalid data: no data")
+		return 0, ErrNoDataToUnpack
 	} else if n < 0 {
-		return i, fmt.Errorf("invalid data: overflow %d", n)
+		return i, fmt.Errorf("invalid varint data: overflow %d", n)
 	}
 	u.buffer = u.buffer[n:]
 	return i, nil
@@ -57,7 +58,7 @@ func (u *Unpacker) NextString() (s string, err error) {
 
 	i := bytes.IndexByte(u.buffer, StringTerminator)
 	if i < 0 {
-		return "", ErrNoStringToUnpack
+		return "", ErrNotAString
 	}
 
 	s = string(u.buffer[:i])
@@ -67,8 +68,10 @@ func (u *Unpacker) NextString() (s string, err error) {
 
 // NextBytes returns the next size bytes.
 func (u *Unpacker) NextBytes(size int) (b []byte, err error) {
-	if len(u.buffer) < size || size < 0 {
-		return nil, ErrNotEnoughDataToUnpack
+	if size < 0 {
+		panic("negative size")
+	} else if len(u.buffer) < size {
+		return nil, fmt.Errorf("%w: requesting %d, got %d", ErrNotEnoughData, size, len(u.buffer))
 	}
 
 	result := make([]byte, size)
@@ -79,8 +82,8 @@ func (u *Unpacker) NextBytes(size int) (b []byte, err error) {
 
 // NextByte returns the next bytes.
 func (u *Unpacker) NextByte() (b byte, err error) {
-	if len(u.buffer) < 1 {
-		return 0, ErrNotEnoughDataToUnpack
+	if len(u.buffer) == 0 {
+		return 0, ErrNotEnoughData
 	}
 
 	result := u.buffer[0]

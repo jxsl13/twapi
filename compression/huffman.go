@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	HuffmanEOFSymbol       = protocol.HuffmanEOFSymbol
-	HuffmanMaxSymbols      = HuffmanEOFSymbol + 1
-	HuffmanMaxNodes        = HuffmanMaxSymbols*2 - 1
+	HuffmanEOFSymbol  = protocol.HuffmanEOFSymbol
+	HuffmanMaxSymbols = protocol.HuffmanMaxSymbols
+
+	HuffmanMaxNodes        = (HuffmanMaxSymbols)*2 + 1 // +1 for additional EOF symbol
 	HuffmanLookupTableBits = 10
 	HuffmanLookupTableSize = (1 << HuffmanLookupTableBits)
 	HuffmanLookupTableMask = (HuffmanLookupTableSize - 1)
@@ -251,18 +252,20 @@ func (h *Huffman) sort(nodesLeftStorage []constructNode, nodesLeft []int) {
 func (h *Huffman) constructTree(frequencyTable [HuffmanMaxSymbols]uint32) {
 
 	var (
-		nodesLeftStorage [HuffmanMaxSymbols]constructNode
-		nodesLeft        [HuffmanMaxSymbols]*constructNode
-		numNodesLeft     = HuffmanMaxSymbols
+		// +1 for additional EOF symbol
+		nodesLeftStorage [HuffmanMaxSymbols + 1]constructNode
+		nodesLeft        [HuffmanMaxSymbols + 1]*constructNode
+		numNodesLeft     = HuffmanMaxSymbols + 1
 
 		n  *node
 		ns *constructNode
 	)
 
-	for i := uint16(0); i < HuffmanMaxSymbols; i++ {
+	// +1 for EOF symbol
+	for i := uint16(0); i < HuffmanMaxSymbols+1; i++ {
 		n = &h.nodes[i]
 		n.NumBits = 0xffffffff
-		n.Symbol = byte(i) // TODO: EOF = 0
+		n.Symbol = byte(i)
 		n.Leafs[0] = 0xffff
 		n.Leafs[1] = 0xffff
 
@@ -276,7 +279,7 @@ func (h *Huffman) constructTree(frequencyTable [HuffmanMaxSymbols]uint32) {
 		nodesLeft[i] = ns
 	}
 
-	h.numNodes = HuffmanMaxSymbols
+	h.numNodes = HuffmanMaxSymbols + 1 // +1 for EOF symbol
 	for numNodesLeft > 1 {
 
 		sort.Stable(byFrequencyDesc(nodesLeft[:numNodesLeft]))

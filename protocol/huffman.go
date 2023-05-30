@@ -1,6 +1,9 @@
 package protocol
 
 // FrequenyTable is the one used in Teeworlds by default.
+// The C++ implementation has an additional frequency on
+// the 256th index with the value 1517 which is overwritten
+// in the huffman constructor anyway making it obsolete
 var FrequencyTable = [HuffmanMaxSymbols]uint32{
 	1 << 30, 4545, 2657, 431, 1950, 919, 444, 482, 2244, 617, 838, 542, 715, 1814, 304, 240, 754, 212, 647, 186,
 	283, 131, 146, 166, 543, 164, 167, 136, 179, 859, 363, 113, 157, 154, 204, 108, 137, 180, 202, 176,
@@ -14,10 +17,10 @@ var FrequencyTable = [HuffmanMaxSymbols]uint32{
 	136, 53, 180, 57, 142, 57, 158, 61, 166, 112, 152, 92, 26, 22, 21, 28, 20, 26, 30, 21,
 	32, 27, 20, 17, 23, 21, 30, 22, 22, 21, 27, 25, 17, 27, 23, 18, 39, 26, 15, 21,
 	12, 18, 18, 27, 20, 18, 15, 19, 11, 17, 33, 12, 18, 15, 19, 18, 16, 26, 17, 18,
-	9, 10, 25, 22, 22, 17, 20, 16, 6, 16, 15, 20, 14, 18, 24, 335, 1517,
+	9, 10, 25, 22, 22, 17, 20, 16, 6, 16, 15, 20, 14, 18, 24, 335,
 }
 
 const (
 	HuffmanEOFSymbol  = 256
-	HuffmanMaxSymbols = HuffmanEOFSymbol + 1
+	HuffmanMaxSymbols = HuffmanEOFSymbol
 )

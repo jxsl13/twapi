@@ -95,6 +95,9 @@ func TestHuffmanCompressDecompress(t *testing.T) {
 	require.Equal(t, src, decompressed)
 }
 
+/*
+// TestHuffmanCompressDecompressEOFBitObsolete tested whether the frequency table needed its last frequency,
+// as it is overwritten anyway in the NewHuffman constructor.
 func TestHuffmanCompressDecompressEOFBitObsolete(t *testing.T) {
 
 	mft := protocol.FrequencyTable
@@ -115,6 +118,7 @@ func TestHuffmanCompressDecompressEOFBitObsolete(t *testing.T) {
 
 	require.Equal(t, src, decompressed)
 }
+*/
 
 func TestUintToBytes(t *testing.T) {
 	from := protocol.FrequencyTable[:]

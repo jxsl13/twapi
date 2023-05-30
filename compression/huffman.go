@@ -33,7 +33,7 @@ type Huffman struct {
 type node struct {
 	// symbol
 	Bits    uint32
-	NumBits uint32
+	NumBits uint8
 
 	// don't use pointers for this. shorts are smaller so we can fit more data into the cache
 	Leafs [2]uint16
@@ -96,7 +96,7 @@ func (h *Huffman) Compress(data, compressed []byte) (written int, err error) {
 		dst      = 0
 		dstEnd   = len(compressed)
 		bits     uint32
-		bitCount uint32
+		bitCount uint8
 	)
 
 	for _, x := range data {
@@ -150,7 +150,7 @@ func (h *Huffman) Decompress(data, decompressed []byte) (written int, err error)
 		dst      = 0
 		dstEnd   = len(decompressed)
 		bits     uint32
-		bitCount uint32
+		bitCount uint8
 		eof      *node = &h.nodes[HuffmanEOFSymbol]
 		n        *node = nil
 	)
@@ -217,7 +217,7 @@ func (h *Huffman) Decompress(data, decompressed []byte) (written int, err error)
 	return dst, nil
 }
 
-func (h *Huffman) setBitsR(n *node, bits uint32, depth uint32) {
+func (h *Huffman) setBitsR(n *node, bits uint32, depth uint8) {
 	var (
 		newBits uint32
 		left    = n.Leafs[0]
@@ -239,16 +239,6 @@ func (h *Huffman) setBitsR(n *node, bits uint32, depth uint32) {
 	}
 }
 
-func (h *Huffman) sort(nodesLeftStorage []constructNode, nodesLeft []int) {
-	if len(nodesLeftStorage) != len(nodesLeft) {
-		panic("index list and object list length mismatch")
-	}
-
-	sort.Slice(nodesLeft, func(i, j int) bool {
-		return nodesLeftStorage[i].frequency > nodesLeftStorage[j].frequency
-	})
-}
-
 func (h *Huffman) constructTree(frequencyTable [HuffmanMaxSymbols]uint32) {
 
 	var (
@@ -264,7 +254,7 @@ func (h *Huffman) constructTree(frequencyTable [HuffmanMaxSymbols]uint32) {
 	// +1 for EOF symbol
 	for i := uint16(0); i < HuffmanMaxSymbols+1; i++ {
 		n = &h.nodes[i]
-		n.NumBits = 0xffffffff
+		n.NumBits = 0xff
 		n.Symbol = byte(i)
 		n.Leafs[0] = 0xffff
 		n.Leafs[1] = 0xffff

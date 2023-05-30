@@ -116,8 +116,7 @@ func (h *Huffman) Compress(data []byte) (compressed []byte) {
 	return compressed
 }
 
-func (h *Huffman) Decompress(data []byte) (decompressed []byte, err error) {
-	decompressed = make([]byte, len(data)*2)
+func (h *Huffman) Decompress(data, decompressed []byte) (written int, err error) {
 
 	var (
 		src      = 0
@@ -147,7 +146,7 @@ func (h *Huffman) Decompress(data []byte) (decompressed []byte, err error) {
 		}
 
 		if n == nil {
-			return decompressed, errors.New("decoding error: symbol not found in lookup table")
+			return dst, errors.New("decoding error: symbol not found in lookup table")
 		}
 
 		if n.NumBits > 0 {
@@ -172,7 +171,7 @@ func (h *Huffman) Decompress(data []byte) (decompressed []byte, err error) {
 				}
 
 				if bitCount == 0 {
-					return decompressed, errors.New("decoding error: symbol not found in tree")
+					return dst, errors.New("decoding error: symbol not found in tree")
 				}
 			}
 		}
@@ -182,14 +181,14 @@ func (h *Huffman) Decompress(data []byte) (decompressed []byte, err error) {
 		}
 
 		if dst == dstEnd {
-			return decompressed, errors.New("decompression failed: not enough space in decompression buffer")
+			return dst, errors.New("decompression failed: not enough space in decompression buffer")
 		}
 
 		decompressed[dst] = n.Symbol
 		dst++
 	}
 
-	return decompressed[:dst], nil
+	return dst, nil
 }
 
 func (h *Huffman) setBitsR(n *node, bits uint32, depth uint32) {

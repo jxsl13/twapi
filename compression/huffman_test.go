@@ -122,7 +122,9 @@ func TestHuffmanCompressDecompress(t *testing.T) {
 
 	src := []byte("compression test string 01")
 	compressed := h.Compress(src)
-	decompressed, err := h.Decompress(compressed)
+	decompressed := make([]byte, 1500)
+	n, err := h.Decompress(compressed, decompressed)
+	decompressed = decompressed[:n]
 	require.NoError(t, err)
 
 	require.Equal(t, src, decompressed)

@@ -50,33 +50,16 @@ func TestPackerAndUnpacker(t *testing.T) {
 	p.Reset()
 	require.Zero(p.Size())
 
-	// generate random numbers
-	sign := 0
 	for i := -1_000_000; i < 1_000_000; i++ {
-
-		if i%2 == 0 {
-			sign = -1
-		} else {
-			sign = 1
-		}
-
-		value := sign * i
-		p.AddInt(value)
+		p.AddInt(i)
 	}
 
 	u.Reset(p.Bytes())
 
 	for i := -1_000_000; i < 1_000_000; i++ {
-		if i%2 == 0 {
-			sign = -1
-		} else {
-			sign = 1
-		}
-
-		value := sign * i
 		n, err := u.NextInt()
 		require.NoError(err)
-		require.Equal(value, n)
+		require.Equal(i, n)
 	}
 
 }

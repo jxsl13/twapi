@@ -1,6 +1,8 @@
 package compression
 
 import (
+	"runtime"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,16 +52,41 @@ func TestPackerAndUnpacker(t *testing.T) {
 	p.Reset()
 	require.Zero(p.Size())
 
-	for i := -1_000_000; i < 1_000_000; i++ {
-		p.AddInt(i)
+	// do batches instead of 20 million numbers in memory
+	batch := func(start, end int, wg *sync.WaitGroup) {
+		defer wg.Done()
+		p := NewPacker(make([]byte, 0, (end-start)*2*4 /* = 4 byte + extra space*/))
+		p.Reset()
+		for i := start; i < end; i++ {
+			p.AddInt(i)
+		}
+
+		u := NewUnpacker(p.Bytes())
+		u.Reset(p.Bytes())
+		for i := start; i < end; i++ {
+			ui, err := u.NextInt()
+			require.NoError(err)
+			require.Equal(i, ui)
+		}
 	}
 
-	u.Reset(p.Bytes())
-
-	for i := -1_000_000; i < 1_000_000; i++ {
-		n, err := u.NextInt()
-		require.NoError(err)
-		require.Equal(i, n)
+	var (
+		start     = -20_000_000
+		end       = 20_000_000
+		batches   = runtime.NumCPU()
+		batchSize = (end - start) / batches
+	)
+	if (end-start)%batchSize > 0 {
+		batches += 1
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(batches)
+
+	for i := start; i < end; i += batchSize {
+		batch(i, i+batchSize, &wg)
+	}
+
+	wg.Wait()
 
 }

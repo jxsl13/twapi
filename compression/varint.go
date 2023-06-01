@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"unsafe"
 )
 
 const (
@@ -24,7 +23,7 @@ func PutVarint(buf []byte, x int) int {
 		panic("ERROR: value to Pack is out of bounds, should be within range [-2147483648:2147483647] (32bit)")
 	}
 
-	intSize := unsafe.Sizeof(x)
+	const intSize = 4
 
 	// stack allocated buffer
 	data := [MaxVarintLen32]byte{} // predefined content of zeroes

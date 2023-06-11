@@ -26,8 +26,8 @@ type NetBase struct {
 	requestTokenBuf [protocol.NetTokenRequestDataSize]byte
 }
 
-func NewNetBase(ctx context.Context, socket *NetSocket) (NetBase, error) {
-	return NetBase{
+func NewNetBase(ctx context.Context, socket *NetSocket) (*NetBase, error) {
+	return &NetBase{
 		ctx:      ctx,
 		socket:   socket,
 		huffmann: compression.NewHuffman(protocol.FrequencyTable),
@@ -47,6 +47,7 @@ func (b *NetBase) Close() error {
 
 // Wait waits for the duration d or for the internal context to be closed.
 // It returns an error in cas ethe internal context was closed
+// TODO: remove this
 func (b *NetBase) Wait(d time.Duration) error {
 	if b.timer == nil || b.ctx == nil {
 		return nil
@@ -63,7 +64,7 @@ func (b *NetBase) Wait(d time.Duration) error {
 }
 
 func (b *NetBase) SendCtrlMsg(addr netip.AddrPort, token protocol.Token, ack int, msg protocol.ControlMsg, extraData ...byte) error {
-	// TODO:implement
+	// TODO: implement
 	return nil
 }
 
@@ -75,7 +76,7 @@ func (b *NetBase) SendCtrlMsgWithToken(
 	myToken protocol.Token,
 	extended bool,
 ) error {
-	// TODO:implement
+	// TODO: implement
 	return nil
 }
 

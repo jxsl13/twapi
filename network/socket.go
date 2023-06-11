@@ -8,13 +8,14 @@ import (
 )
 
 // NilNetSocket is the zero value of an unitialized NetSocket.
-var NilNetSocket NetSocket
+var NilNetSocket *NetSocket = nil
 
 type NetSocket struct {
-	socket *net.UDPConn
+	randomPort bool
+	socket     *net.UDPConn
 }
 
-func NewNetSocketFrom(bindAddr string, randomPort ...bool) (NetSocket, error) {
+func NewNetSocketFrom(bindAddr string, randomPort ...bool) (*NetSocket, error) {
 	ap, err := netip.ParseAddrPort(bindAddr)
 	if err != nil {
 		return NilNetSocket, err
@@ -28,7 +29,7 @@ func NewNetSocketFrom(bindAddr string, randomPort ...bool) (NetSocket, error) {
 // assign a random port.
 // If you want a random hight port in the range between 49152 and 65535, then
 // pass a true as addistional single extra parameter for 'randomPort'
-func NewNetSocket(bindAddrPort netip.AddrPort, randomPort ...bool) (sock NetSocket, err error) {
+func NewNetSocket(bindAddrPort netip.AddrPort, randomPort ...bool) (sock *NetSocket, err error) {
 	randPort := false
 	if len(randomPort) > 0 {
 		randPort = randomPort[0]
@@ -88,11 +89,13 @@ func NewNetSocket(bindAddrPort netip.AddrPort, randomPort ...bool) (sock NetSock
 	}
 
 	if broadcastErr != nil {
+		conn.Close()
 		return NilNetSocket, broadcastErr
 	}
 
-	return NetSocket{
-		socket: conn,
+	return &NetSocket{
+		randomPort: randPort,
+		socket:     conn,
 	}, nil
 }
 

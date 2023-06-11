@@ -1,19 +1,24 @@
 package network
 
 import (
-	"net/netip"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jxsl13/twapi/protocol"
+)
+
+var (
+	ErrChunkHeaderDataTooSmall = errors.New("chunk header data too small")
 )
 
 type Chunk struct {
 	// -1 means that it's a connless packet
 	// 0 on the client means the server
 	ClientID int
-	Addr     netip.AddrPort // only used when cid == -1
+	Addr     NetAddr // only used when cid == -1
 
-	Flags protocol.ChunkFlags
+	Flags protocol.SendFlags
 	Data  []byte
 }
 
@@ -37,7 +42,7 @@ func (h *ChunkHeader) IsVital() bool {
 }
 
 // Pack adds the header to the provided buffer
-// The passed buffe rmust have preallocated space
+// The passed buffer must have preallocated space
 // accessible via index
 func (h *ChunkHeader) Pack(buffer []byte) []byte {
 	// bounds check
@@ -57,8 +62,11 @@ func (h *ChunkHeader) Pack(buffer []byte) []byte {
 // Unpack extracts the chunk header from the passed data bytes.
 // The returned byte slice points to the not yet consumed bytes
 // skipping those
-func (h *ChunkHeader) Unpack(data []byte) []byte {
-	_ = data[protocol.NetMaxChunkHeaderSize-1] // bounds check
+func (h *ChunkHeader) Unpack(data []byte) ([]byte, error) {
+	if len(data) < protocol.NetMaxChunkHeaderSize {
+		return data, fmt.Errorf("%w: %d", ErrChunkHeaderDataTooSmall, len(data))
+	}
+	// _ = data[protocol.NetMaxChunkHeaderSize-1] // bounds check
 
 	h.Flags = protocol.ChunkFlags((data[0] >> 6) & 0x03)
 	h.Size = int(((data[0] & 0x3F) << 6) | (data[1] & 0x3F))
@@ -66,8 +74,8 @@ func (h *ChunkHeader) Unpack(data []byte) []byte {
 
 	if h.IsVital() {
 		h.Sequence = int(((data[1] & 0xC0) << 2) | data[2])
-		return data[3:]
+		return data[3:], nil
 	}
 
-	return data[2:]
+	return data[2:], nil
 }

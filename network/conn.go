@@ -18,7 +18,6 @@ type Conn struct {
 
 	// TODO: ringbuffer
 	buffer []ChunkResend
-	// TStaticRingBuffer<CNetChunkResend, NET_CONN_BUFFERSIZE> m_Buffer;
 
 	lastUpdateTime time.Time
 	lastRecvTime   time.Time
@@ -33,21 +32,36 @@ type Conn struct {
 	peerAddr  NetAddr
 
 	stats NetStats
-	//CNetBase *m_pNetBase;
-
+	base  *NetBase
 }
 
-func NewConn(blockCloseMsg bool) *Conn {
+func NewConn(base *NetBase, blockCloseMsg bool) Conn {
 	conn := Conn{
+		base:          base,
 		blockCloseMsg: blockCloseMsg,
+		buffer:        make([]ChunkResend, protocol.NetConnBufferSize),
 	}
 
-	// TODO: net conn
-	// m_pNetBase = pNetBase;
-	return &conn
+	return conn
 }
 
-func (c *Conn) Reset() {
+func (c *Conn) AckOne() {
+	c.ack = (c.ack + 1) % protocol.NetMaxSequence
+}
+
+func (c *Conn) AckSequence() int {
+	return c.ack
+}
+
+func (c *Conn) NextAck() int {
+	return (c.ack + 1) % protocol.NetMaxSequence
+}
+
+func (c *Conn) SignalResend() {
+	c.construct.Flags |= protocol.NetPacketFlagResend
+}
+
+func (c *Conn) reset() {
 	c.sequence = 0
 	c.ack = 0
 	c.peerAck = 0
@@ -63,22 +77,22 @@ func (c *Conn) Reset() {
 	c.peerToken = protocol.NetTokenNone
 	c.peerAddr = NilNetAddr
 
-	c.buffer = make([]ChunkResend, 0, NetConnBufferSize)
+	c.buffer = make([]ChunkResend, protocol.NetConnBufferSize)
 
 	var construct PacketConstruct
 	c.construct = construct
 }
 
-func (c *Conn) ResetStats() {
+func (c *Conn) resetStats() {
 	var stats NetStats
 	c.stats = stats
 }
 
-func (c *Conn) SetError(err error) {
+func (c *Conn) setError(err error) {
 	c.err = err
 }
 
-func (c *Conn) AckChunks(ack int) {
+func (c *Conn) ackChunks(ack int) {
 
 	for _, resend := range c.buffer {
 		if c.IsSeqInBackroom(resend.Sequence, ack) {
@@ -89,40 +103,39 @@ func (c *Conn) AckChunks(ack int) {
 	}
 }
 
-// TODO: make flags typed
-func (c *Conn) QueueChunkEx(flags int, sequence int, data []byte) int {
+func (c *Conn) queueChunkEx(flags protocol.ChunkFlags, sequence int, data []byte) int {
 	return 0
 }
 
 // TODO: make controlMsg a typed enum
-func (c *Conn) SendControl(controlMsg int, extraData ...byte) error {
+func (c *Conn) sendControl(controlMsg int, extraData ...byte) error {
 	return nil
 }
 
 // TODO: make controlMsg a typed enum
-func (c *Conn) SendControlWithToken(controlMsg int) error {
+func (c *Conn) sendControlWithToken(controlMsg int) error {
 	return nil
 }
 
-func (c *Conn) ResendChunk(resend ChunkResend) error {
+func (c *Conn) resendChunk(resend ChunkResend) error {
 	return nil
 }
 
-func (c *Conn) Resend() error {
+func (c *Conn) resend() error {
 	return nil
 }
 
-func (c *Conn) GenerateToken(addr NetAddr) protocol.Token {
+func (c *Conn) generateToken(addr NetAddr) protocol.Token {
 	return protocol.NetTokenNone
 }
 
 func (c *Conn) IsSeqInBackroom(seq, ack int) bool {
-	bottom := (ack - NetMaxSequence/2)
+	bottom := (ack - protocol.NetMaxSequence/2)
 	if bottom < 0 {
 		if seq <= ack {
 			return true
 		}
-		if seq >= (bottom + NetMaxSequence) {
+		if seq >= (bottom + protocol.NetMaxSequence) {
 			return true
 
 		}

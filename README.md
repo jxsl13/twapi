@@ -5,11 +5,18 @@
 Currently this supports only the server browser api.
 It is possible to retrieve data from the masterservers as well as the server information from the game servers.
 
-In order to download the dependency, execute:
+In order to download the latest released version, execute:
 
 ```shell
-go get github.com/jxsl13/twapi/
+go get github.com/jxsl13/twapi@latest
 ```
+
+In order to download the latest development version, execute:
+
+```shell
+go get github.com/jxsl13/twapi@master
+```
+
 
 ### Example - High Level Abstraction(Open for optimizing suggestions)
 
@@ -90,6 +97,10 @@ func main() {
 
     // create toke from response
     token, err := browser.ParseToken(bufSlice)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
     // reset slice
     bufSlice = bufSlice[:1500]
 
@@ -176,6 +187,10 @@ func main() {
 
     // create toke from response
     token, err := browser.ParseToken(bufSlice)
+    if err != nil {
+        fmt.Println(err)
+        return
+    }
     // reset slice
     bufSlice = bufSlice[:1500]
 

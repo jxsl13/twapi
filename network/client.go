@@ -27,7 +27,7 @@ func NewNetClient(ctx context.Context, bindAddr netip.AddrPort, randomPort bool)
 
 	var (
 		tokenManager = NewTokenManager()
-		tokenCache   = NewTokenCache(tokenManager) // TODO: continue here
+		// tokenCache   = NewTokenCache(tokenManager) // TODO: continue here
 	)
 
 	return &NetClient{
@@ -35,7 +35,7 @@ func NewNetClient(ctx context.Context, bindAddr netip.AddrPort, randomPort bool)
 		conn:         NewConn(base, true),
 		recvUnpacker: NewRecvUnpacker(),
 		tokenManager: tokenManager,
-		tokenCache:   tokenCache,
+		// tokenCache:   tokenCache,
 	}, nil
 }
 

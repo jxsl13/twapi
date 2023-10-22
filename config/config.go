@@ -5,40 +5,86 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"strings"
+	"io"
+	"strconv"
 )
 
 var (
 	errStartIndexIsNegative = errors.New("start index is negative")
 	errEndIndexIsNegative   = errors.New("end index is negative")
 	ErrNotACommand          = errors.New("not a config command")
-	ErrIsComment            = errors.New("comment")
+	ErrIsComment            = errors.New("is a comment")
 	ErrCommandListIsNil     = errors.New("command list is nil (uninitialized)")
 )
 
-// NewCommands initialized a new and empty command list
-func NewCommands() Commands {
-	return make(Commands, 0, 1)
+// NewConfig initialized a new and empty command list
+func NewConfig() Config {
+	return make(Config, 0, 1)
 }
 
-type Commands []Command
+// NewConfigFromText parses a config from a byte slice
+func NewConfigFromText(data []byte) (Config, error) {
+	var c Config
+	err := c.UnmarshalText(data)
+	return c, err
+}
 
-func (cc *Commands) String() string {
-	var sb strings.Builder
-	sb.Grow(len(*cc) * 64)
-	for _, cmd := range *cc {
-		sb.WriteString(cmd.String())
-		sb.WriteRune('\n')
+// NewConfigFromReader parses a config from an io.Reader
+func NewConfigFromReader(r io.Reader) (Config, error) {
+	var c Config
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
 	}
 
-	return sb.String()
+	err = c.UnmarshalText(data)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
-func (cc *Commands) UnmarshalBinary(data []byte) error {
+type Config []Command
+
+func (cc Config) MarshalText() ([]byte, error) {
+	var (
+		buf = bytes.NewBuffer(make([]byte, 0, 64*len(cc)))
+		err error
+		txt []byte
+	)
+
+	for _, cmd := range cc {
+		txt, err = cmd.MarshalText()
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(txt)
+		buf.WriteRune('\n')
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (cc *Config) UnmarshalText(data []byte) error {
 	if cc == nil {
 		return ErrCommandListIsNil
 	}
-	*cc = Parse(data)
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+
+	commands := make([]Command, 0, 4)
+	for scanner.Scan() {
+
+		var cmd Command
+		err := cmd.UnmarshalText(scanner.Bytes())
+		if err == nil {
+			commands = append(commands, cmd)
+		} else if errors.Is(err, ErrNotACommand) {
+			continue
+		} else {
+			return err
+		}
+	}
+	*cc = commands
 	return nil
 }
 
@@ -47,74 +93,56 @@ type Command struct {
 	Args []string
 }
 
-func (c *Command) String() string {
-	var sb strings.Builder
+func (c *Command) MarshalText() ([]byte, error) {
 	size := len(c.Name)
 	for _, arg := range c.Args {
 		size += len(arg)
 	}
-	sb.Grow(size)
+	buf := bytes.NewBuffer(make([]byte, 0, size))
 
-	sb.WriteString(c.Name)
-	sb.WriteRune(' ')
+	buf.WriteString(c.Name)
+	buf.WriteRune(' ')
 
 	for idx, arg := range c.Args {
-		sb.WriteRune('"')
-		sb.WriteString(arg)
-		sb.WriteRune('"')
+		buf.WriteString(strconv.Quote(arg))
 		if idx < len(c.Args)-1 {
-			sb.WriteRune(' ')
+			buf.WriteRune(' ')
 		}
 	}
 
-	return sb.String()
+	return buf.Bytes(), nil
 }
 
-func (c *Command) UnmarshalBinary(data []byte) error {
-	cmd, err := ParseLine(data)
+func (c *Command) UnmarshalText(data []byte) error {
+	cmd, err := parseLine(data)
 	if err != nil {
 		return err
 	}
 
-	*c = *cmd
+	*c = cmd
 	return nil
 }
 
-// Parse parses a whole cfg file
-// Redundant configuration lines stay part of the list
-func Parse(data []byte) Commands {
-	scanner := bufio.NewScanner(bytes.NewReader(data))
-
-	commands := make([]Command, 0, 16)
-	for scanner.Scan() {
-		cmd, err := ParseLine(scanner.Bytes())
-		if err == nil && cmd != nil {
-			commands = append(commands, *cmd)
-		}
-	}
-	return commands
-}
-
-// ParseLine parses a single config line
-func ParseLine(data []byte) (*Command, error) {
+// parseLine parses a single config line
+func parseLine(data []byte) (Command, error) {
 	if len(data) < 3 {
-		return nil, fmt.Errorf("%w: %v", ErrNotACommand, "invalid data length")
+		return Command{}, fmt.Errorf("%w: %v", ErrNotACommand, "invalid data length")
 	}
 
 	cmdStart := skipWhitespace(data)
 	if cmdStart < 0 {
-		return nil, fmt.Errorf("%w: %v", ErrNotACommand, errStartIndexIsNegative)
+		return Command{}, fmt.Errorf("%w: %v", ErrNotACommand, errStartIndexIsNegative)
 	}
 	cmdEnd := cmdStart + skipToWhitespace(data[cmdStart:])
 	if cmdEnd < 0 {
-		return nil, fmt.Errorf("%w: %v", ErrNotACommand, errEndIndexIsNegative)
+		return Command{}, fmt.Errorf("%w: %v", ErrNotACommand, errEndIndexIsNegative)
 	}
 
 	if data[cmdStart] == '#' {
-		return nil, ErrIsComment
+		return Command{}, fmt.Errorf("%w: %w", ErrNotACommand, ErrIsComment)
 	}
 
-	command := &Command{
+	command := Command{
 		Name: string(data[cmdStart:cmdEnd]),
 		Args: make([]string, 0, 1),
 	}

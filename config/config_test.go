@@ -12,12 +12,11 @@ func TestParse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := NewConfig()
-
-	err = c.UnmarshalText(b)
+	c, err := NewConfigFromText(b)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if len(c) == 0 {
 		t.Fatalf("parsed 0 commands")
 	}
@@ -63,11 +62,11 @@ func TestParseLine(t *testing.T) {
 			var got Command
 			err := got.UnmarshalText(data)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ParseLine() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("UnmarshalText() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ParseLine() = %v, want %v", got, tt.want)
+				t.Errorf("UnmarshalText() = %v, want %v", got, tt.want)
 			}
 		})
 	}

@@ -17,6 +17,18 @@ In order to download the latest development version, execute:
 go get github.com/jxsl13/twapi@master
 ```
 
+## Stable packages
+
+- browser
+- compression
+- config
+- econ
+
+## Unstable packages
+
+- network
+- protocol
+
 
 ### Example - High Level Abstraction(Open for optimizing suggestions)
 

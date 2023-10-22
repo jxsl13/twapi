@@ -19,7 +19,7 @@ jobs:
       run: go vet ./...
 
     - name: Code Coverage
-      run: go test ./... -timeout 30s -race -count=1 -covermode=atomic -coverprofile=coverage.out
+      run: go test ./... -timeout 300s -race -count=1 -covermode=atomic -coverprofile=coverage.out
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

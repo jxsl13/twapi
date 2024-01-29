@@ -3,6 +3,9 @@ package econ
 import (
 	"fmt"
 	"testing"
+	"time"
+
+	"context"
 )
 
 var (
@@ -13,8 +16,9 @@ var (
 
 func TestDialTo(t *testing.T) {
 	if !hasValidCredentials {
-
-		_, err := DialTo(validAddress, validPassword)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := DialTo(validAddress, validPassword, WithContext(ctx))
 		if err == nil {
 			t.Fatal("expected error, because credentials are not valid")
 		}

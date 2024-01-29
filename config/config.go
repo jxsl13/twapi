@@ -22,15 +22,15 @@ func NewConfig() Config {
 	return make(Config, 0, 1)
 }
 
-// NewConfigFromText parses a config from a byte slice
-func NewConfigFromText(data []byte) (Config, error) {
+// ParseConfig parses a config from a byte slice
+func ParseConfigBytes(data []byte) (Config, error) {
 	var c Config
 	err := c.UnmarshalText(data)
 	return c, err
 }
 
 // NewConfigFromReader parses a config from an io.Reader
-func NewConfigFromReader(r io.Reader) (Config, error) {
+func ParseConfigReader(r io.Reader) (Config, error) {
 	var c Config
 	data, err := io.ReadAll(r)
 	if err != nil {

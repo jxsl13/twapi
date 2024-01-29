@@ -7,7 +7,7 @@ import (
 
 var (
 	hasValidCredentials = false
-	validAddress        = "127.0.0.1:9303"
+	validAddress        = "127.0.0.1:9313"
 	validPassword       = "12345"
 )
 

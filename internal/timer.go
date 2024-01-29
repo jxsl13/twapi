@@ -1,10 +1,14 @@
-package network
+package internal
 
 import "time"
 
+func NewTimer(duration time.Duration) (t *time.Timer, drained bool) {
+	return time.NewTimer(duration), false
+}
+
 // closeTimer should be used as a deferred function
 // in order to cleanly shut down a timer
-func closeTimer(timer *time.Timer, drained *bool) {
+func CloseTimer(timer *time.Timer, drained *bool) {
 	if drained == nil {
 		panic("drained bool pointer is nil")
 	}
@@ -18,7 +22,7 @@ func closeTimer(timer *time.Timer, drained *bool) {
 }
 
 // resetTimer sets drained to false after resetting the timer.
-func resetTimer(timer *time.Timer, duration time.Duration, drained *bool) {
+func ResetTimer(timer *time.Timer, duration time.Duration, drained *bool) {
 	if drained == nil {
 		panic("drained bool pointer is nil")
 	}

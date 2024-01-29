@@ -12,7 +12,7 @@ func TestParse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c, err := NewConfigFromText(b)
+	c, err := ParseConfigBytes(b)
 	if err != nil {
 		t.Fatal(err)
 	}

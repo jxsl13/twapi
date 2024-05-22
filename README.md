@@ -43,7 +43,10 @@ import (
 func main() {
     // fetch all server infos (that respond within 16 seconds)
     // if no servers responded, this list will be empty.
-    infos := browser.ServerInfos()
+    infos, err := browser.ServerInfos()
+    if err != nil {
+        panic(err)
+    }
     for _, info := range infos {
         fmt.Println(info)
     }
@@ -51,11 +54,11 @@ func main() {
     // fetches the specified server's players, server name, etc.
     // if no answer is received within 16 seconds, this function returns
     // an error
-    info, err := browser.GetServerInfo("89.163.148.121", 8305)
+    infos, err := browser.GetServerInfosOf("89.163.148.121:8305")
     if err != nil {
-        fmt.Println(err)
+        panic(err)
     } else {
-        fmt.Println(info)
+        fmt.Println(infos[0])
     }
 }
 ```
@@ -76,22 +79,18 @@ import (
 func main() {
     addr, err := net.ResolveUDPAddr("udp", "master1.teeworlds.com:8283")
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
 
     conn, err := net.DialUDP("udp", nil, addr)
-
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
     defer conn.Close()
 
     err = browser.RequestToken(conn)
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
 
     conn.SetDeadline(time.Now().Add(5 * time.Second))
@@ -101,8 +100,7 @@ func main() {
 
     read, err := conn.Read(bufSlice)
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
     bufSlice = bufSlice[:read]
     fmt.Printf("read: %d bytes from %s\n", read, conn.RemoteAddr().String())
@@ -110,16 +108,14 @@ func main() {
     // create toke from response
     token, err := browser.ParseToken(bufSlice)
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
     // reset slice
     bufSlice = bufSlice[:1500]
 
     err = browser.Request("serverlist", token, conn)
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
 
     // timeout after 5 secods
@@ -133,14 +129,12 @@ func main() {
 
     serverList, err := browser.ParseServerList(bufSlice)
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
 
     for _, server := range serverList {
         fmt.Printf("Server: %s\n", server.String())
     }
-
 }
 
 ```
@@ -161,15 +155,12 @@ import (
 func main() {
     addr, err := net.ResolveUDPAddr("udp", "master1.teeworlds.com:8283")
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
 
     conn, err := net.DialUDP("udp", nil, addr)
-
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
     defer conn.Close()
 
@@ -179,8 +170,7 @@ func main() {
     // send request
     written, err := conn.Write(tokenReq)
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
     fmt.Printf("written: %d bytes to %s\n", written, conn.RemoteAddr().String())
 
@@ -191,8 +181,7 @@ func main() {
 
     read, err := conn.Read(bufSlice)
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
     bufSlice = bufSlice[:read]
     fmt.Printf("read: %d bytes from %s\n", read, conn.RemoteAddr().String())
@@ -200,8 +189,7 @@ func main() {
     // create toke from response
     token, err := browser.ParseToken(bufSlice)
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
     // reset slice
     bufSlice = bufSlice[:1500]
@@ -212,8 +200,7 @@ func main() {
     // Send server list request
     written, err = conn.Write(serverListReq)
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
     fmt.Printf("written: %d bytes to %s\n", written, conn.RemoteAddr().String())
 
@@ -228,8 +215,7 @@ func main() {
 
     serverList, err := browser.ParseServerList(bufSlice)
     if err != nil {
-        fmt.Println(err)
-        return
+        panic(err)
     }
 
     for _, server := range serverList {

@@ -2,11 +2,18 @@ package browser
 
 import (
 	"bytes"
-	"net"
+	"fmt"
+	"net/netip"
+)
+
+var (
+	// fixed size array
+	ipv4Prefix      = [12]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF}
+	ipv4PrefixSlice = ipv4Prefix[:]
 )
 
 // parseServerList parses the response server list
-func parseServerList(serverListPayoad []byte) ([]*net.UDPAddr, error) {
+func parseServerList(serverListPayoad []byte) ([]netip.AddrPort, error) {
 	data := serverListPayoad
 	/*
 		each server information contains of 18 bytes
@@ -17,27 +24,43 @@ func parseServerList(serverListPayoad []byte) ([]*net.UDPAddr, error) {
 		and if it does not match, the IP is parsed as IPv6
 	*/
 	numServers := len(data) / 18 // 18 bytes, 16 for IPv4/IPv6 and 2 bytes for the port
-	serverList := make([]*net.UDPAddr, 0, numServers)
+	serverList := make([]netip.AddrPort, 0, numServers)
 
-	// fixed size array
-	ipv4Prefix := [12]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF}
+	var (
+		ok   bool
+		addr netip.Addr
+		port uint16
+		ip   []byte
+
+		ipStart, ipv4PrefixEnd, ipEnd int
+		portHigh, portLow             int
+	)
 
 	for idx := 0; idx < numServers; idx++ {
-		var ip []byte
+		// calculate index values
+		ipStart = idx * 18
+		ipv4PrefixEnd = idx*18 + 12
+		ipEnd = idx*18 + 16 // ipv6 has 16 bytes
+		portHigh, portLow = ipEnd, idx*18+17
 
 		// compare byte slices
-		if bytes.Equal(ipv4Prefix[:], data[idx*18:idx*18+12]) {
+		if bytes.Equal(ipv4PrefixSlice, data[ipStart:ipv4PrefixEnd]) {
+			ipv4Start := ipv4PrefixEnd
 			// IPv4 has a prefix
-			ip = data[idx*18+12 : idx*18+16]
+			ip = data[ipv4Start:ipEnd]
 		} else {
 			// full IP is the IPv6 otherwise
-			ip = data[idx*18 : idx*18+16]
+			ip = data[ipStart:ipEnd]
 		}
 
-		serverList = append(serverList, &net.UDPAddr{
-			IP:   ip,
-			Port: (int(data[idx*18+16]) << 8) + int(data[idx*18+17]),
-		})
+		addr, ok = netip.AddrFromSlice(ip)
+		if !ok {
+			return nil, fmt.Errorf("invalid ip address bytes: %v", ip)
+		}
+
+		port = (uint16(data[portHigh]) << 8) + (uint16(data[portLow]))
+
+		serverList = append(serverList, netip.AddrPortFrom(addr, port))
 	}
 
 	return serverList, nil
@@ -60,15 +83,15 @@ func parseServerCount(serverCountPayload []byte) (int, error) {
 }
 
 // ParseServerInfo parses the serrver's server info response
-func parseServerInfo(serverInfoPayload []byte, address string) (*ServerInfo, error) {
+func parseServerInfo(serverInfoPayload []byte, address string) (ServerInfo, error) {
 	data := serverInfoPayload
 
-	info := &ServerInfo{
+	info := ServerInfo{
 		Address: address,
 	}
 	err := info.UnmarshalBinary(data)
 	if err != nil {
-		return nil, err
+		return info, err
 	}
 	return info, nil
 }

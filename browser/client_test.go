@@ -2,7 +2,7 @@ package browser_test
 
 import (
 	"encoding/json"
-	"net"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -18,7 +18,9 @@ func init() {
 	browser.Logging = true
 }
 
-func TestClient_GetToken(t *testing.T) {
+func TestClientGetToken(t *testing.T) {
+	t.Parallel()
+
 	c, err := browser.NewClient(MasterServer)
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +56,9 @@ func TestClient_GetToken(t *testing.T) {
 
 }
 
-func TestClient_GetServerCount(t *testing.T) {
+func TestClientGetServerCount(t *testing.T) {
+	t.Parallel()
+
 	c, err := browser.NewClient(MasterServer)
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +78,9 @@ func TestClient_GetServerCount(t *testing.T) {
 
 }
 
-func TestClient_GetServerAddresses(t *testing.T) {
+func TestClientGetServerAddresses(t *testing.T) {
+	t.Parallel()
+
 	c, err := browser.NewClient(MasterServer)
 	if err != nil {
 		t.Fatal(err)
@@ -86,13 +92,13 @@ func TestClient_GetServerAddresses(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	set := map[string]*net.UDPAddr{}
+	set := map[netip.AddrPort]struct{}{}
 	for _, addr := range list {
-		old, ok := set[addr.String()]
+		old, ok := set[addr]
 		if ok {
-			t.Errorf("Duplicate server old: %v new: %v", old.IP, addr.IP)
+			t.Errorf("Duplicate server old: %v", old)
 		}
-		set[addr.String()] = addr
+		set[addr] = struct{}{}
 	}
 
 	if len(set) != len(list) {
@@ -100,7 +106,9 @@ func TestClient_GetServerAddresses(t *testing.T) {
 	}
 }
 
-func TestClient_GetServerInfo(t *testing.T) {
+func TestClientGetServerInfo(t *testing.T) {
+	t.Parallel()
+
 	c, err := browser.NewClient(SimplyzCatch)
 	if err != nil {
 		t.Fatal(err)
@@ -117,4 +125,21 @@ func TestClient_GetServerInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("ServerInfo: %s", string(b))
+}
+
+func TestGetSingleMasterServer(t *testing.T) {
+	t.Parallel()
+
+	client, err := browser.NewClient(MasterServer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	addresses, err := client.GetServerAddresses()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(addresses)
 }

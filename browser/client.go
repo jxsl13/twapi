@@ -2,6 +2,7 @@ package browser
 
 import (
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 )
@@ -35,6 +36,9 @@ func newClient() (*Client, error) {
 }
 
 // NewClient creates a new browser client that can fetch the number of registered servers,
+// from a single master server address which is the parameter that is passed to this constructor.
+// Currently it is also possible to pass a game server address to this constructor in order to
+// fetch that specific server's server info.
 func NewClient(address string) (*Client, error) {
 	c, err := newClient()
 	if err != nil {
@@ -60,13 +64,11 @@ type Client struct {
 }
 
 func (c *Client) SetTarget(address string) error {
-
-	addr, err := parseAddress(address)
+	udpAddr, err := resolveUDPAddr(address)
 	if err != nil {
 		return err
 	}
-
-	c.setTarget(addr)
+	c.setTarget(udpAddr)
 	return nil
 }
 
@@ -111,8 +113,11 @@ func (c *Client) write(data []byte) (int, error) {
 
 // tries to write all of the data provided
 func (c *Client) writeToUDP(data []byte, addr *net.UDPAddr) (int, error) {
-	expected := len(data)
-	written := 0
+	var (
+		expected = len(data)
+		written  = 0
+	)
+
 	for written < expected {
 		err := c.conn.SetWriteDeadline(time.Now().Add(c.writeTimeout))
 		if err != nil {
@@ -135,6 +140,8 @@ func (c *Client) read(data []byte) (int, error) {
 	return c.conn.Read(data)
 }
 
+/*
+// TODO: unused for now
 func (c *Client) readFromUDP(data []byte) (int, *net.UDPAddr, error) {
 	err := c.conn.SetReadDeadline(time.Now().Add(c.readTimeout))
 	if err != nil {
@@ -142,6 +149,7 @@ func (c *Client) readFromUDP(data []byte) (int, *net.UDPAddr, error) {
 	}
 	return c.conn.ReadFromUDP(data)
 }
+*/
 
 // unguarded variant
 func (c *Client) getToken() (*Token, error) {
@@ -245,26 +253,27 @@ func (c *Client) getServerCount() (int, error) {
 }
 
 // GetServerAddresses returns a list of server addresses from the underlying master server
-func (c *Client) GetServerAddresses() ([]*net.UDPAddr, error) {
+func (c *Client) GetServerAddresses() ([]netip.AddrPort, error) {
 	c.mu.Lock()
 	list, err := c.getServerAddresses()
 	c.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
+
 	// cleanup duplicate, most likely ipv4&ipv6 addresses
-	set := make(map[string]*net.UDPAddr, len(list))
+	set := make(map[netip.AddrPort]struct{}, len(list))
 	for _, addr := range list {
-		set[addr.String()] = addr
+		set[addr] = struct{}{}
 	}
 	list = list[:0] // reset list
-	for _, addr := range set {
+	for addr := range set {
 		list = append(list, addr)
 	}
 	return list, nil
 }
 
-func (c *Client) getServerAddresses() ([]*net.UDPAddr, error) {
+func (c *Client) getServerAddresses() ([]netip.AddrPort, error) {
 	expectedServers, err := c.getServerCount()
 	if err != nil {
 		return nil, err
@@ -274,7 +283,7 @@ func (c *Client) getServerAddresses() ([]*net.UDPAddr, error) {
 		expectedChunks += 1
 	}
 
-	result := make([]*net.UDPAddr, 0, expectedServers)
+	result := make([]netip.AddrPort, 0, expectedServers)
 
 	request, err := c.request(RequestServerList)
 	if err != nil {
@@ -311,23 +320,23 @@ func (c *Client) getServerAddresses() ([]*net.UDPAddr, error) {
 	return result, nil
 }
 
-func (c *Client) getServerInfo() (*ServerInfo, error) {
+func (c *Client) getServerInfo() (si ServerInfo, err error) {
 	resp, err := c.get(RequestInfo)
 	if err != nil {
-		return nil, err
+		return si, err
 	}
 
 	info, err := parseServerInfo(resp.Payload, c.target.String())
 	if err != nil {
-		return nil, err
+		return si, err
 	}
 
 	return info, nil
 }
 
-// GetServerInfo returns the server info of a game server. This function requires the target to be set to a
-// game server address
-func (c *Client) GetServerInfo() (*ServerInfo, error) {
+// GetServerInfo returns the server info of a game server.
+// This function requires the target to be set to a game server address
+func (c *Client) GetServerInfo() (ServerInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.getServerInfo()

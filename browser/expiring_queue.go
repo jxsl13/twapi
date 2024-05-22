@@ -41,12 +41,12 @@ func (pq expiringQueue) peek() *expiringKey {
 	return &pq[0]
 }
 
-func (pq expiringQueue) pop() *expiringKey {
-	if len(pq) == 0 {
+func (pq *expiringQueue) pop() *expiringKey {
+	if pq == nil || len(*pq) == 0 {
 		return nil
 	}
-	ek := pq[0]
-	pq = pq[1:]
+	ek := (*pq)[0]
+	*pq = (*pq)[1:]
 	return &ek
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net"
+	"net/netip"
 	"sync"
 	"time"
 )
@@ -95,16 +96,14 @@ var (
 	// This variable can be changed
 	TokenExpirationDuration = time.Second * 16
 
-	masterServerHostnameAddresses = []string{
+	// MasterServerAddresses contains the resolved addresses as ip:port
+	// initialized on startup with master servers that can be reached
+	MasterServerAddresses = []string{
 		"master1.teeworlds.com:8283",
 		"master2.teeworlds.com:8283",
 		"master3.teeworlds.com:8283",
 		"master4.teeworlds.com:8283",
 	}
-
-	// MasterServerAddresses contains the resolved addresses as ip:port
-	// initialized on startup with master servers that can be reached
-	MasterServerAddresses = []*net.UDPAddr{}
 
 	// ResponsePacketList is a list of known headers that we can expect from either master or game servers
 	ResponsePacketList = [][]byte{
@@ -114,51 +113,27 @@ var (
 	}
 )
 
-// init initializes a package on import
-func init() {
-	if Logging {
-		log.Println("Initializing twapi package...")
-	}
-
-	MasterServerAddresses = make([]*net.UDPAddr, 0, len(masterServerHostnameAddresses))
-
-	for _, ms := range masterServerHostnameAddresses {
-		srv, err := net.ResolveUDPAddr("udp", ms)
-		if err != nil {
-			if Logging {
-				log.Printf("Failed to resolve: %s\n", ms)
-			}
-		} else {
-			if Logging {
-				log.Printf("Resolved masterserver: %s -> %s\n", ms, srv.String())
-			}
-			MasterServerAddresses = append(MasterServerAddresses, srv)
-		}
-	}
-	if Logging && len(MasterServerAddresses) == 0 {
-		log.Println("Could not resolve any masterservers.... please check your internet connection.")
-	}
-}
-
-func GetServerAddresses() ([]*net.UDPAddr, error) {
-	clients := make([]*Client, len(MasterServerAddresses))
-	for idx := range clients {
-		client, err := NewClient(MasterServerAddresses[idx].String())
+func GetServerAddresses() ([]netip.AddrPort, error) {
+	clients := make([]*Client, 0, len(MasterServerAddresses))
+	for _, addr := range MasterServerAddresses {
+		client, err := NewClient(addr)
 		if err != nil {
 			return nil, err
 		}
 		// called at the end of the function, not at the end of the loop
 		defer client.Close()
-		clients[idx] = client
+		clients = append(clients, client)
 	}
 
-	set := make(map[string]*net.UDPAddr, 1024)
-	mu := &sync.Mutex{}
-	wg := &sync.WaitGroup{}
+	var (
+		set = make(map[netip.AddrPort]struct{}, 1024)
+		mu  sync.Mutex
+		wg  sync.WaitGroup
+	)
 
 	wg.Add(len(clients))
 	for _, client := range clients {
-		go func(c *Client, s map[string]*net.UDPAddr, m *sync.Mutex, w *sync.WaitGroup) {
+		go func(c *Client, s map[netip.AddrPort]struct{}, m *sync.Mutex, w *sync.WaitGroup) {
 			defer wg.Done()
 			// get all addresses from all master servers
 			list, err := c.GetServerAddresses()
@@ -169,43 +144,47 @@ func GetServerAddresses() ([]*net.UDPAddr, error) {
 			defer m.Unlock()
 			// add all addresses to a global set
 			for _, addr := range list {
-				s[addr.String()] = addr
+				s[addr] = struct{}{}
 			}
-		}(client, set, mu, wg)
+		}(client, set, &mu, &wg)
 	}
 
 	wg.Wait()
-	result := make([]*net.UDPAddr, 0, len(set))
-	for _, addr := range set {
+	result := make([]netip.AddrPort, 0, len(set))
+	for addr := range set {
 		result = append(result, addr)
 	}
 	return result, nil
 }
 
-// GetServerInfos returns a list of all server infos that are registered with the master servers
-func GetServerInfosOf(addr []*net.UDPAddr) ([]*ServerInfo, error) {
-	list := addr
-	// channel with addresses that need to be fetched
-	addresses := make(chan *net.UDPAddr)
+// GetServerInfos allows you to fetch a list of server infos directly from Teeworlds servers
+// that you provide here.
+// You can pass domain.name.com:8303 or actual ips in here like ipv4:port or [ipv6]:port
+func GetServerInfosOf(addresses ...string) ([]ServerInfo, error) {
 
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	// routine that creates work, producer
-	go func(w *sync.WaitGroup) {
-		defer wg.Done()
-		// push work into channel
-		for _, addr := range list {
-			addresses <- addr
+	var (
+		// channel with addresses that need to be fetched
+		udpAddrChan = make(chan *net.UDPAddr, len(addresses))
+		wg          = sync.WaitGroup{}
+	)
+	// push work into channel
+	for _, addr := range addresses {
+		udpAddr, err := resolveUDPAddr(addr)
+		if err != nil {
+			return nil, err
 		}
-		// wait for worker threads to finish
-		close(addresses)
-	}(wg)
+		udpAddrChan <- udpAddr
+	}
+	// fill the channel and mark as closed afterwards
+	close(udpAddrChan)
 
 	// use global value
-	workers := len(list)
-	var gErr error
-	mu := &sync.Mutex{}
-	result := make([]*ServerInfo, 0, len(list))
+	var (
+		workers = len(addresses)
+		gErr    error
+		mu      = sync.Mutex{}
+		result  = make([]ServerInfo, 0, len(addresses))
+	)
 
 	wg.Add(workers)
 	for i := 0; i < workers; i++ {
@@ -223,7 +202,7 @@ func GetServerInfosOf(addr []*net.UDPAddr) ([]*ServerInfo, error) {
 			}
 			defer c.Close()
 			// iterate over channel until closed
-			for addr := range addresses {
+			for addr := range udpAddrChan {
 				// communicate with target address
 				if Logging {
 					log.Printf("fetching server info for address: %s\n", addr)
@@ -237,7 +216,7 @@ func GetServerInfosOf(addr []*net.UDPAddr) ([]*ServerInfo, error) {
 				result = append(result, si)
 				m.Unlock()
 			}
-		}(wg, mu, i)
+		}(&wg, &mu, i)
 	}
 
 	// wait for workers to finish work
@@ -248,37 +227,36 @@ func GetServerInfosOf(addr []*net.UDPAddr) ([]*ServerInfo, error) {
 	return result, nil
 }
 
-func missing(all []*net.UDPAddr, found map[string]*ServerInfo) []*net.UDPAddr {
-	result := make([]*net.UDPAddr, 0, len(all)/2)
-	missing := make(map[string]*net.UDPAddr, len(found)/2)
+func missing(all []netip.AddrPort, found map[string]ServerInfo) []string {
+	missing := make(map[netip.AddrPort]struct{}, len(found)/2)
 
 	for _, addr := range all {
-		addrStr := addr.String()
-		_, ok := found[addrStr]
+		_, ok := found[addr.String()]
 		if !ok {
-			missing[addrStr] = addr
+			missing[addr] = struct{}{}
 		}
 	}
 
-	for _, mis := range missing {
-		result = append(result, mis)
+	result := make([]string, 0, len(missing))
+	for mis := range missing {
+		result = append(result, mis.String())
 	}
 	log.Printf("missing: %d\n", len(missing))
 	return result
 }
 
-func GetServerInfos() ([]*ServerInfo, error) {
+func GetServerInfos() ([]ServerInfo, error) {
 	list, err := GetServerAddresses()
 	if err != nil {
 		return nil, err
 	}
-	checkList := make(map[string]*ServerInfo, len(list))
+	checkList := make(map[string]ServerInfo, len(list))
 
 	retries := 0
 	for mis := missing(list, checkList); len(mis) > 0 && retries < 2; mis = missing(list, checkList) {
 		retries++
 
-		infos, err := GetServerInfosOf(mis)
+		infos, err := GetServerInfosOf(mis...)
 		if err != nil {
 			continue
 		}
@@ -288,7 +266,7 @@ func GetServerInfos() ([]*ServerInfo, error) {
 		}
 	}
 
-	result := make([]*ServerInfo, 0, len(checkList))
+	result := make([]ServerInfo, 0, len(checkList))
 	for _, info := range checkList {
 		result = append(result, info)
 

@@ -3,7 +3,9 @@ package compression
 const (
 	// StringTerminator is the zero byte that terminates the string
 	StringTerminator byte = 0
+)
 
+var (
 	// with how many bytes the packer is initialized
 	PackerBufferSize = 1024 * 2
 )

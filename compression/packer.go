@@ -51,6 +51,13 @@ func (p *Packer) Size() int {
 	return len(p.buffer)
 }
 
+func (p *Packer) AddBool(b bool) {
+	if b {
+		p.buffer = append(p.buffer, 0x01)
+	}
+	p.buffer = append(p.buffer, 0x00)
+}
+
 func (p *Packer) AddInt(i int) {
 	p.buffer = AppendVarint(p.buffer, i)
 }

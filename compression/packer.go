@@ -34,11 +34,13 @@ func (p *Packer) Bytes() []byte {
 }
 
 // Reset internal buffer
-func (p *Packer) Reset() {
-	if p.buffer == nil {
-		p.buffer = make([]byte, 0, PackerBufferSize)
-	} else {
+func (p *Packer) Reset(buf ...[]byte) {
+	if len(buf) > 0 {
+		p.buffer = append(p.buffer[:0], buf[0]...)
+	} else if p.buffer != nil {
 		p.buffer = p.buffer[:0]
+	} else {
+		p.buffer = make([]byte, 0, PackerBufferSize)
 	}
 }
 

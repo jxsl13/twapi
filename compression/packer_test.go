@@ -8,6 +8,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestReset(t *testing.T) {
+	p := NewPacker([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9})
+
+	expected := []byte{10, 11, 12, 13, 14, 15, 16}
+	p.Reset(expected)
+
+	result := p.Bytes()
+	require.Equal(t, expected, result)
+
+}
+
 func TestPackerAndUnpacker(t *testing.T) {
 	require := require.New(t)
 

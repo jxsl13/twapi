@@ -14,7 +14,7 @@ const (
 
 // PutVarint encodes an int32 into buf and returns the number of bytes written.
 // If the buffer is too small, PutVarint will panic.
-// Format: ESDDDDDD EDDDDDDD EDD... Extended, Data, Sign
+// Format: ESDDDDDD EDDDDDDD EDD... Extended, Sign, Data
 // E: is next byte part of the current integer
 // S: Sign of integer
 // Data, Integer bits that follow the sign
@@ -91,12 +91,17 @@ func Varint(buf []byte) (i int, n int) {
 	for i, b := range buf {
 		index++
 		// overflow check
-		if i == maxAllowedLen-1 && b >= 0b10000000 {
+		// 1 sign bit + 6 data bits = 7 bits
+		// 7 bits * 4 bytes = 28 bits
+		// 7 + 28 = 35 bits, 3 too many
+		// last byte can only have 4 bits
+		if i == maxAllowedLen-1 && b > 0b00001111 {
 			return 0, -(i + 1)
 		}
 
 		value |= int(b&0b01111111) << (6 + 7*i)
 		if b < 0b10000000 {
+			// no extend bit set
 			break
 		}
 	}
@@ -145,9 +150,14 @@ func ReadVarint(r io.ByteReader) (int, error) {
 			}
 			return value, nil
 		}
-
 		index++
-		if i == maxAllowedLen-1 && b >= 0b10000000 {
+
+		// overflow check
+		// 1 sign bit + 6 data bits = 7 bits
+		// 7 bits * 4 bytes = 28 bits
+		// 7 + 28 = 35 bits, 3 too many
+		// last byte can only have 4 bits
+		if i == maxAllowedLen-1 && b > 0b00001111 {
 			return 0, errors.New("overflow due to invalid last byte")
 		}
 

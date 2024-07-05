@@ -6,7 +6,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/jxsl13/twapi/internal/testutils/require"
 )
 
 func varIntWriteRead(t *testing.T, inNumber int, expectedBytes int) {
@@ -16,7 +16,7 @@ func varIntWriteRead(t *testing.T, inNumber int, expectedBytes int) {
 	written := PutVarint(buf, inNumber)
 	require.Equal(expectedBytes, written)
 	out, read := Varint(buf)
-	require.GreaterOrEqual(read, 1, "read must be at least 0")
+	require.GreaterOrEqual(1, read, "read must be at least 0")
 	require.Equal(inNumber, out, "out == in")
 	require.Equal(written, read, "read == written")
 	// buf := buf[:written]
@@ -50,7 +50,7 @@ func TestVarintExtensive(t *testing.T) {
 			written   = PutVarint(buf, in)
 			out, read = Varint(buf)
 		)
-		require.GreaterOrEqual(read, 1, "read must be at least 1")
+		require.GreaterOrEqual(1, read, "read must be at least 1")
 		require.Equal(in, out, "in/out")
 		require.Equal(written, read, "written/read")
 	}

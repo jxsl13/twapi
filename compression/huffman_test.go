@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/jxsl13/twapi/compression"
+	"github.com/jxsl13/twapi/internal/testutils/require"
 	"github.com/jxsl13/twapi/protocol"
-	"github.com/stretchr/testify/require"
 )
 
 func FuzzNewHuffman(f *testing.F) {
@@ -76,7 +76,7 @@ func TestHuffmanCompress(t *testing.T) {
 	compressed := make([]byte, 1500)
 	n, err := h.Compress(src, compressed)
 	require.NoError(t, err)
-	require.Greater(t, n, 0)
+	require.Greater(t, 0, n)
 }
 
 func TestHuffmanCompressDecompress(t *testing.T) {

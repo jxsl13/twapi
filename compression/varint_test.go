@@ -50,7 +50,7 @@ func TestVarintExtensive(t *testing.T) {
 			written   = PutVarint(buf, in)
 			out, read = Varint(buf)
 		)
-		require.GreaterOrEqual(0, read, "read must be at least 0")
+		require.GreaterOrEqual(read, 1, "read must be at least 1")
 		require.Equal(in, out, "in/out")
 		require.Equal(written, read, "written/read")
 	}
